@@ -1,0 +1,3 @@
+[submodule "extern/restbed"]
+	path = extern/restbed
+	url = https://github.com/Corvusoft/restbed.git
