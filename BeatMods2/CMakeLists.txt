@@ -8,7 +8,7 @@ add_executable (BeatMods2
 	"src/BeatMods2.cpp" "include/BeatMods2.h"
 	"include/logging/Logging.h" "src/logging/Logging.cpp")
 target_include_directories(BeatMods2 PRIVATE "include")
-target_link_libraries (BeatMods2 restbed-static)
+target_link_libraries (BeatMods2 restbed-static pqxx_static)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD 17)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD_REQUIRED ON)
 
