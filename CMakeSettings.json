@@ -28,7 +28,13 @@
       "buildCommandArgs": "-v",
       "ctestCommandArgs": "",
       "inheritEnvironments": [ "clang_cl_x64" ],
-      "variables": []
+      "variables": [
+        {
+          "name": "BUILD_SSL",
+          "value": "False",
+          "type": "BOOL"
+        }
+      ]
     }
   ]
 }
