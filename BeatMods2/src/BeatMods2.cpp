@@ -7,6 +7,7 @@
 #include <memory>
 #include <cstdlib>
 #include <pqxx/pqxx>
+#include <semver200.h>
 
 #include "logging/Logging.h"
 
