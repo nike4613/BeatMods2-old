@@ -5,5 +5,9 @@ cmake_minimum_required (VERSION 3.8)
 
 project ("BeatMods2")
 
+set( CMAKE_CXX_STANDARD 11 )
+
 # Include sub-projects.
+add_subdirectory ("extern")
+include_directories(SYSTEM ${DEPS_INCLUDE_DIRS})
 add_subdirectory ("BeatMods2")
