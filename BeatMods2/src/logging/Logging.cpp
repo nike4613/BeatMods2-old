@@ -17,6 +17,7 @@ std::string std::to_string(restbed::Logger::Level const& level)
     }
     
     assert("Invalid level");
+    return {};
 }
 
 void UnifiedLogger::start(std::shared_ptr<restbed::Settings const> const& settings)

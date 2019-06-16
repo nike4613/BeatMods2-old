@@ -33,11 +33,11 @@ namespace BeatMods {
         std::vector<std::shared_ptr<UnifiedLogger>> loggers;
 
         MultiLogger() = default;
-        constexpr MultiLogger(std::initializer_list<std::shared_ptr<UnifiedLogger>>&& loggers) : loggers(loggers) {}
+        MultiLogger(std::initializer_list<std::shared_ptr<UnifiedLogger>>&& loggers) : loggers(loggers) {}
     public:
         void write(Level const level, std::string_view) override;
 
-        template<typename...T> constexpr MultiLogger(std::shared_ptr<T> const&... Args)
+        template<typename...T> MultiLogger(std::shared_ptr<T> const&... Args)
             : MultiLogger( { (static_cast<std::shared_ptr<UnifiedLogger>>(Args), ...) } ) {}
 
         template<typename...T> static std::shared_ptr<MultiLogger> New(std::shared_ptr<T> const&... Args)
