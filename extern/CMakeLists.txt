@@ -17,4 +17,7 @@ set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${CMAKE_CURRENT_SOURCE_DIR}/libpqxx/
 include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/libpqxx/include" "${CMAKE_CURRENT_BINARY_DIR}/libpqxx/include")
 add_subdirectory("libpqxx")
 
+set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${CMAKE_CURRENT_SOURCE_DIR}/semver/include")
+add_subdirectory("semver")
+
 set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS}" PARENT_SCOPE)
