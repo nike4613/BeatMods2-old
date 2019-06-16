@@ -3,7 +3,7 @@
 
 using namespace BeatMods;
 
-std::string std::to_string(const restbed::Logger::Level& level)
+std::string std::to_string(restbed::Logger::Level const& level)
 {
     switch (level)
     {
@@ -16,7 +16,7 @@ std::string std::to_string(const restbed::Logger::Level& level)
     }
 }
 
-void UnifiedLogger::start(const std::shared_ptr<const restbed::Settings>& settings)
+void UnifiedLogger::start(std::shared_ptr<restbed::Settings const> const& settings)
 {
 }
 
@@ -24,7 +24,7 @@ void UnifiedLogger::stop()
 {
 }
 
-void UnifiedLogger::log(const Level level, const char* format, ...)
+void UnifiedLogger::log(Level const level, char const* format, ...)
 {
     char buf[LOGGER_BUFFER_SIZE];
     
@@ -36,7 +36,7 @@ void UnifiedLogger::log(const Level level, const char* format, ...)
     write(level, { buf, static_cast<size_t>(len) });
 }
 
-void BeatMods::UnifiedLogger::log_if(bool expression, const Level level, const char* format, ...)
+void BeatMods::UnifiedLogger::log_if(bool expression, Level const level, char const* format, ...)
 {
     if (expression) {
         char buf[LOGGER_BUFFER_SIZE];
@@ -50,7 +50,7 @@ void BeatMods::UnifiedLogger::log_if(bool expression, const Level level, const c
     }
 }
 
-void StdoutLogger::write(const Level level, std::string_view text)
+void StdoutLogger::write(Level const level, std::string_view text)
 {
     std::cout << "[" << std::to_string(level) << "] " << text << std::endl;
 }
@@ -60,8 +60,8 @@ std::shared_ptr<StdoutLogger> BeatMods::StdoutLogger::New()
     return std::make_shared<StdoutLogger>();
 }
 
-void MultiLogger::write(const Level level, std::string_view text)
+void MultiLogger::write(Level const level, std::string_view text)
 {
-    for (const auto& log : loggers)
+    for (auto const& log : loggers)
         log->write(level, text);
 }

@@ -13,14 +13,14 @@
 #include "logging/Logging.h"
 
 namespace {
-    void GET_root_handler(const std::shared_ptr<restbed::Session> session)
+    void GET_root_handler(std::shared_ptr<restbed::Session> const session)
     {
-        const auto& req = session->get_request();
+        auto const& req = session->get_request();
 
         std::stringstream ss;
         ss << req->get_path_parameter("path") << " - thread " << std::this_thread::get_id();
 
-        const std::string body = ss.str();
+        std::string const body = ss.str();
         session->close(restbed::OK, body, { { "Content-Length", std::to_string(body.size()) } });
     }
 }
