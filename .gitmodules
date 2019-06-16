@@ -6,4 +6,4 @@
 	url = https://github.com/jtv/libpqxx.git
 [submodule "extern/semver"]
 	path = extern/semver
-	url = https://github.com/zmarko/semver.git
+	url = https://github.com/raftario/semver.git
