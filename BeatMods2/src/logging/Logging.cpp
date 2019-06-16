@@ -1,5 +1,6 @@
 #include "logging/Logging.h"
 #include <iostream>
+#include <cassert>
 
 using namespace BeatMods;
 
@@ -14,6 +15,8 @@ std::string std::to_string(restbed::Logger::Level const& level)
     case restbed::Logger::Level::INFO: return "Info";
     case restbed::Logger::Level::SECURITY: return "Security";
     }
+    
+    assert("Invalid level");
 }
 
 void UnifiedLogger::start(std::shared_ptr<restbed::Settings const> const& settings)
