@@ -5,8 +5,9 @@ cmake_minimum_required (VERSION 3.8)
 
 # Add source to this project's executable.
 add_executable (BeatMods2 
-	"src/BeatMods2.cpp" "include/BeatMods2.h"
-	"include/logging/Logging.h" "src/logging/Logging.cpp")
+	"include/BeatMods2.h" "src/BeatMods2.cpp"
+	"include/logging/Logging.h" "src/logging/Logging.cpp"
+    "include/util/json.h")
 target_include_directories(BeatMods2 PRIVATE "include")
 target_link_libraries (BeatMods2 restbed-static pqxx_static semver)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD 17)
