@@ -4,3 +4,4 @@
 out/
 cmake-build-*/
 build/
+.code-workspace

@@ -1,0 +1,12 @@
+{
+    "port": 7000,
+    "bind_address": "127.0.0.1",
+    "use_ssl": false,
+    "vue_config": {
+        "test": [
+            "vue",
+            "setting"
+        ],
+        "number": 1
+    }
+}
