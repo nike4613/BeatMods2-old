@@ -7,3 +7,6 @@
 [submodule "extern/semver"]
 	path = extern/semver
 	url = https://github.com/raftario/semver.git
+[submodule "extern/rapidjson"]
+	path = extern/rapidjson
+	url = https://github.com/Tencent/rapidjson.git

@@ -10,6 +10,9 @@
 #include <pqxx/pqxx>
 #include <semver200.h>
 
+#include "util/json.h"
+#include <rapidjson/prettywriter.h>
+
 #include "logging/Logging.h"
 
 namespace {
@@ -18,7 +21,19 @@ namespace {
         auto const& req = session->get_request();
 
         std::stringstream ss;
-        ss << req->get_path_parameter("path") << " - thread " << std::this_thread::get_id();
+        ss << req->get_path_parameter("path") << " - thread " << std::this_thread::get_id() << std::endl;
+
+        auto const json_str = req->get_query_parameter("json", "{}");
+
+        rapidjson::Document doc;
+        if (doc.Parse(json_str).HasParseError())
+            ss << "Error parsing json query parameter" << std::endl;
+        else {
+            rapidjson::StringBuffer sb;
+            rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
+            doc.Accept(writer);
+            ss << sb.GetString() << std::endl;
+        }
 
         std::string const body = ss.str();
         session->close(restbed::OK, body, { { "Content-Length", std::to_string(body.size()) } });
