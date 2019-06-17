@@ -1,14 +1,8 @@
 #!/bin/bash
 
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
-curl -vs "http://localhost:7000/[0-999]" &
+for i in {0..99}
+do
+  curl -s "http://localhost:7000/[0-99]" &
+done
 
 wait
