@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"cstddef": "cpp",
+			"cstdint": "cpp",
+			"string_view": "cpp",
+			"type_traits": "cpp",
+			"iosfwd": "cpp",
+			"*.tcc": "cpp"
+		}
+	}
+}
