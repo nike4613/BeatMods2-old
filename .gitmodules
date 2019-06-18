@@ -10,3 +10,6 @@
 [submodule "extern/rapidjson"]
 	path = extern/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
+[submodule "BeatMods2-Client"]
+	path = BeatMods2-Client
+	url = git@github.com:raftario/BeatMods2-Client.git
