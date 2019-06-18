@@ -57,6 +57,9 @@ namespace {
             ss << sb.GetString() << std::endl;
         }
 
+        ss << session->get_destination() << std::endl;
+        ss << req->get_path() << std::endl;
+
         std::string const body = ss.str();
         session->close(restbed::OK, body, { { "Content-Length", std::to_string(body.size()) } });
     }
@@ -80,15 +83,24 @@ int main()
     config->set_path("/config");
     config->set_method_handler("GET", GET_config);
 
-    unsigned int worker_limit = std::thread::hardware_concurrency() / 4 * 3;
+    unsigned int worker_limit = std::thread::hardware_concurrency() / conf.worker_limit_den * conf.worker_limit_num;
 
     auto settings = std::make_shared<restbed::Settings>();
     settings->set_port(conf.port);
     settings->set_bind_address(conf.bind_address);
-    //if (conf.use_ssl)
-    //    settings->set_ssl_settings
     settings->set_worker_limit(worker_limit);
     settings->set_default_header("Connection", "close");
+
+    if (conf.use_ssl)
+    {
+        auto ssl_settings = std::make_shared<restbed::SSLSettings>();
+        ssl_settings->set_http_disabled(!conf.ssl_https_only);
+        ssl_settings->set_private_key(conf.ssl_private_key);
+        ssl_settings->set_certificate(conf.ssl_certificate);
+        ssl_settings->set_temporary_diffie_hellman(conf.ssl_diffie_hellman);
+        
+        settings->set_ssl_settings(ssl_settings);
+    }
 
     {
         std::ofstream configJson {"config.json"};
