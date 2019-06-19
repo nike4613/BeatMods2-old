@@ -5,7 +5,7 @@
 -- Dumped from database version 11.3
 -- Dumped by pg_dump version 11.2
 
--- Started on 2019-06-18 21:21:27
+-- Started on 2019-06-19 15:35:47
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -18,7 +18,7 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- TOC entry 3001 (class 1262 OID 16394)
+-- TOC entry 3002 (class 1262 OID 16394)
 -- Name: beatmods-2; Type: DATABASE; Schema: -; Owner: -
 --
 
@@ -62,7 +62,7 @@ CREATE EXTENSION IF NOT EXISTS adminpack WITH SCHEMA pg_catalog;
 
 
 --
--- TOC entry 3002 (class 0 OID 0)
+-- TOC entry 3003 (class 0 OID 0)
 -- Dependencies: 1
 -- Name: EXTENSION adminpack; Type: COMMENT; Schema: -; Owner: -
 --
@@ -79,7 +79,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 
 
 --
--- TOC entry 3003 (class 0 OID 0)
+-- TOC entry 3004 (class 0 OID 0)
 -- Dependencies: 3
 -- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: -
 --
@@ -96,7 +96,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 
 
 --
--- TOC entry 3004 (class 0 OID 0)
+-- TOC entry 3005 (class 0 OID 0)
 -- Dependencies: 4
 -- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
 --
@@ -149,8 +149,8 @@ CREATE TYPE "mod-repo"."DownloadType" AS ENUM (
 --
 
 CREATE TYPE "mod-repo"."ModRange" AS (
-	id character varying(128)[],
-	"versionRange" character varying(64)[]
+	id character varying(128),
+	"versionRange" character varying(64)
 );
 
 
@@ -319,7 +319,7 @@ CREATE SEQUENCE "mod-repo"."Groups_id_seq"
 
 
 --
--- TOC entry 3005 (class 0 OID 0)
+-- TOC entry 3006 (class 0 OID 0)
 -- Dependencies: 206
 -- Name: Groups_id_seq; Type: SEQUENCE OWNED BY; Schema: mod-repo; Owner: -
 --
@@ -336,8 +336,6 @@ CREATE TABLE "mod-repo"."Mods" (
     name text NOT NULL,
     description text NOT NULL,
     version "mod-repo"."Version" NOT NULL,
-    "dependsOn" "mod-repo"."ModRange"[] NOT NULL,
-    "conflictsWith" "mod-repo"."ModRange"[] NOT NULL,
     uploaded timestamp with time zone NOT NULL,
     approved timestamp with time zone,
     "approvalState" "mod-repo"."Approval" NOT NULL,
@@ -346,7 +344,9 @@ CREATE TABLE "mod-repo"."Mods" (
     id character varying(128) NOT NULL,
     "gameVersion" uuid NOT NULL,
     system "mod-repo"."System" NOT NULL,
-    required boolean NOT NULL
+    required boolean NOT NULL,
+    "dependsOn" "mod-repo"."ModRange"[] NOT NULL,
+    "conflictsWith" "mod-repo"."ModRange"[] NOT NULL
 );
 
 
@@ -367,7 +367,7 @@ CREATE TABLE "mod-repo"."Mods_Tags_Joiner" (
 --
 
 CREATE TABLE "mod-repo"."News" (
-    id uuid NOT NULL,
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     title text NOT NULL,
     author uuid NOT NULL,
     body text NOT NULL,
@@ -402,7 +402,7 @@ CREATE SEQUENCE "mod-repo"."Tags_id_seq"
 
 
 --
--- TOC entry 3006 (class 0 OID 0)
+-- TOC entry 3007 (class 0 OID 0)
 -- Dependencies: 212
 -- Name: Tags_id_seq; Type: SEQUENCE OWNED BY; Schema: mod-repo; Owner: -
 --
@@ -461,7 +461,7 @@ CREATE SEQUENCE "server-state"."Log_id_seq"
 
 
 --
--- TOC entry 3007 (class 0 OID 0)
+-- TOC entry 3008 (class 0 OID 0)
 -- Dependencies: 215
 -- Name: Log_id_seq; Type: SEQUENCE OWNED BY; Schema: server-state; Owner: -
 --
@@ -489,7 +489,7 @@ ALTER TABLE ONLY "mod-repo"."Groups" ALTER COLUMN id SET DEFAULT nextval('"mod-r
 
 
 --
--- TOC entry 2829 (class 2604 OID 16676)
+-- TOC entry 2830 (class 2604 OID 16676)
 -- Name: Tags id; Type: DEFAULT; Schema: mod-repo; Owner: -
 --
 
@@ -497,7 +497,7 @@ ALTER TABLE ONLY "mod-repo"."Tags" ALTER COLUMN id SET DEFAULT nextval('"mod-rep
 
 
 --
--- TOC entry 2830 (class 2604 OID 16703)
+-- TOC entry 2831 (class 2604 OID 16703)
 -- Name: Log id; Type: DEFAULT; Schema: server-state; Owner: -
 --
 
@@ -505,7 +505,7 @@ ALTER TABLE ONLY "server-state"."Log" ALTER COLUMN id SET DEFAULT nextval('"serv
 
 
 --
--- TOC entry 2846 (class 2606 OID 16605)
+-- TOC entry 2847 (class 2606 OID 16605)
 -- Name: Downloads Downloads_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -514,7 +514,7 @@ ALTER TABLE ONLY "mod-repo"."Downloads"
 
 
 --
--- TOC entry 2849 (class 2606 OID 16616)
+-- TOC entry 2850 (class 2606 OID 16616)
 -- Name: GameVersion_VisibleGroups_Joiner GameVersion_VisibleGroups_Joiner_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -523,7 +523,7 @@ ALTER TABLE ONLY "mod-repo"."GameVersion_VisibleGroups_Joiner"
 
 
 --
--- TOC entry 2840 (class 2606 OID 16538)
+-- TOC entry 2841 (class 2606 OID 16538)
 -- Name: GameVersions GameVersions_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -532,7 +532,7 @@ ALTER TABLE ONLY "mod-repo"."GameVersions"
 
 
 --
--- TOC entry 2843 (class 2606 OID 16560)
+-- TOC entry 2844 (class 2606 OID 16560)
 -- Name: Groups Groups_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -541,7 +541,7 @@ ALTER TABLE ONLY "mod-repo"."Groups"
 
 
 --
--- TOC entry 2859 (class 2606 OID 16686)
+-- TOC entry 2860 (class 2606 OID 16686)
 -- Name: Mods_Tags_Joiner Mods_Tags_Joiner_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -550,7 +550,7 @@ ALTER TABLE ONLY "mod-repo"."Mods_Tags_Joiner"
 
 
 --
--- TOC entry 2833 (class 2606 OID 16522)
+-- TOC entry 2834 (class 2606 OID 16522)
 -- Name: Mods Mods_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -559,7 +559,7 @@ ALTER TABLE ONLY "mod-repo"."Mods"
 
 
 --
--- TOC entry 2855 (class 2606 OID 16652)
+-- TOC entry 2856 (class 2606 OID 16652)
 -- Name: News News_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -568,7 +568,7 @@ ALTER TABLE ONLY "mod-repo"."News"
 
 
 --
--- TOC entry 2857 (class 2606 OID 16681)
+-- TOC entry 2858 (class 2606 OID 16681)
 -- Name: Tags Tags_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -577,7 +577,7 @@ ALTER TABLE ONLY "mod-repo"."Tags"
 
 
 --
--- TOC entry 2852 (class 2606 OID 16633)
+-- TOC entry 2853 (class 2606 OID 16633)
 -- Name: Users_Groups_Joiner Users_Groups_Joiner_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -586,7 +586,7 @@ ALTER TABLE ONLY "mod-repo"."Users_Groups_Joiner"
 
 
 --
--- TOC entry 2836 (class 2606 OID 16519)
+-- TOC entry 2837 (class 2606 OID 16519)
 -- Name: Users Users_name_key; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -595,7 +595,7 @@ ALTER TABLE ONLY "mod-repo"."Users"
 
 
 --
--- TOC entry 2838 (class 2606 OID 16516)
+-- TOC entry 2839 (class 2606 OID 16516)
 -- Name: Users Users_pkey; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -604,7 +604,7 @@ ALTER TABLE ONLY "mod-repo"."Users"
 
 
 --
--- TOC entry 2861 (class 2606 OID 16708)
+-- TOC entry 2862 (class 2606 OID 16708)
 -- Name: Log Log_pkey; Type: CONSTRAINT; Schema: server-state; Owner: -
 --
 
@@ -613,7 +613,7 @@ ALTER TABLE ONLY "server-state"."Log"
 
 
 --
--- TOC entry 2863 (class 2606 OID 16730)
+-- TOC entry 2864 (class 2606 OID 16730)
 -- Name: Tokens Tokens_pkey; Type: CONSTRAINT; Schema: server-state; Owner: -
 --
 
@@ -622,7 +622,7 @@ ALTER TABLE ONLY "server-state"."Tokens"
 
 
 --
--- TOC entry 2844 (class 1259 OID 16611)
+-- TOC entry 2845 (class 1259 OID 16611)
 -- Name: Downloads_ModIndex; Type: INDEX; Schema: mod-repo; Owner: -
 --
 
@@ -630,7 +630,7 @@ CREATE INDEX "Downloads_ModIndex" ON "mod-repo"."Downloads" USING btree (mod) IN
 
 
 --
--- TOC entry 2847 (class 1259 OID 16628)
+-- TOC entry 2848 (class 1259 OID 16628)
 -- Name: GameVersion_VisibleGroups_Joiner_index; Type: INDEX; Schema: mod-repo; Owner: -
 --
 
@@ -638,7 +638,7 @@ CREATE UNIQUE INDEX "GameVersion_VisibleGroups_Joiner_index" ON "mod-repo"."Game
 
 
 --
--- TOC entry 2841 (class 1259 OID 16587)
+-- TOC entry 2842 (class 1259 OID 16587)
 -- Name: GroupIDindex; Type: INDEX; Schema: mod-repo; Owner: -
 --
 
@@ -646,7 +646,7 @@ CREATE INDEX "GroupIDindex" ON "mod-repo"."Groups" USING btree (id);
 
 
 --
--- TOC entry 2831 (class 1259 OID 16665)
+-- TOC entry 2832 (class 1259 OID 16665)
 -- Name: Mods_SearchIndex; Type: INDEX; Schema: mod-repo; Owner: -
 --
 
@@ -654,7 +654,7 @@ CREATE INDEX "Mods_SearchIndex" ON "mod-repo"."Mods" USING btree (name text_patt
 
 
 --
--- TOC entry 2853 (class 1259 OID 16658)
+-- TOC entry 2854 (class 1259 OID 16658)
 -- Name: News_OrderIndex; Type: INDEX; Schema: mod-repo; Owner: -
 --
 
@@ -662,7 +662,7 @@ CREATE INDEX "News_OrderIndex" ON "mod-repo"."News" USING btree (posted DESC NUL
 
 
 --
--- TOC entry 2834 (class 1259 OID 16517)
+-- TOC entry 2835 (class 1259 OID 16517)
 -- Name: UserSearch; Type: INDEX; Schema: mod-repo; Owner: -
 --
 
@@ -670,7 +670,7 @@ CREATE UNIQUE INDEX "UserSearch" ON "mod-repo"."Users" USING btree (name text_pa
 
 
 --
--- TOC entry 2850 (class 1259 OID 16644)
+-- TOC entry 2851 (class 1259 OID 16644)
 -- Name: Users_Groups_Joiner_index; Type: INDEX; Schema: mod-repo; Owner: -
 --
 
@@ -678,7 +678,7 @@ CREATE INDEX "Users_Groups_Joiner_index" ON "mod-repo"."Users_Groups_Joiner" USI
 
 
 --
--- TOC entry 2866 (class 2606 OID 16606)
+-- TOC entry 2867 (class 2606 OID 16606)
 -- Name: Downloads Downloads_mod_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -687,7 +687,7 @@ ALTER TABLE ONLY "mod-repo"."Downloads"
 
 
 --
--- TOC entry 2867 (class 2606 OID 16617)
+-- TOC entry 2868 (class 2606 OID 16617)
 -- Name: GameVersion_VisibleGroups_Joiner GameVersion_VisibleGroups_Joiner_gameVersion_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -696,7 +696,7 @@ ALTER TABLE ONLY "mod-repo"."GameVersion_VisibleGroups_Joiner"
 
 
 --
--- TOC entry 2868 (class 2606 OID 16622)
+-- TOC entry 2869 (class 2606 OID 16622)
 -- Name: GameVersion_VisibleGroups_Joiner GameVersion_VisibleGroups_Joiner_group_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -705,7 +705,7 @@ ALTER TABLE ONLY "mod-repo"."GameVersion_VisibleGroups_Joiner"
 
 
 --
--- TOC entry 2872 (class 2606 OID 16687)
+-- TOC entry 2873 (class 2606 OID 16687)
 -- Name: Mods_Tags_Joiner Mods_Tags_Joiner_mod_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -714,7 +714,7 @@ ALTER TABLE ONLY "mod-repo"."Mods_Tags_Joiner"
 
 
 --
--- TOC entry 2873 (class 2606 OID 16692)
+-- TOC entry 2874 (class 2606 OID 16692)
 -- Name: Mods_Tags_Joiner Mods_Tags_Joiner_tag_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -723,7 +723,7 @@ ALTER TABLE ONLY "mod-repo"."Mods_Tags_Joiner"
 
 
 --
--- TOC entry 2864 (class 2606 OID 16523)
+-- TOC entry 2865 (class 2606 OID 16523)
 -- Name: Mods Mods_author_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -732,7 +732,7 @@ ALTER TABLE ONLY "mod-repo"."Mods"
 
 
 --
--- TOC entry 2865 (class 2606 OID 16539)
+-- TOC entry 2866 (class 2606 OID 16539)
 -- Name: Mods Mods_gameVersion_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -741,7 +741,7 @@ ALTER TABLE ONLY "mod-repo"."Mods"
 
 
 --
--- TOC entry 2871 (class 2606 OID 16653)
+-- TOC entry 2872 (class 2606 OID 16653)
 -- Name: News News_author_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -750,7 +750,7 @@ ALTER TABLE ONLY "mod-repo"."News"
 
 
 --
--- TOC entry 2870 (class 2606 OID 16639)
+-- TOC entry 2871 (class 2606 OID 16639)
 -- Name: Users_Groups_Joiner Users_Groups_Joiner_group_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -759,7 +759,7 @@ ALTER TABLE ONLY "mod-repo"."Users_Groups_Joiner"
 
 
 --
--- TOC entry 2869 (class 2606 OID 16634)
+-- TOC entry 2870 (class 2606 OID 16634)
 -- Name: Users_Groups_Joiner Users_Groups_Joiner_user_fkey; Type: FK CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
@@ -768,7 +768,7 @@ ALTER TABLE ONLY "mod-repo"."Users_Groups_Joiner"
 
 
 --
--- TOC entry 2874 (class 2606 OID 16731)
+-- TOC entry 2875 (class 2606 OID 16731)
 -- Name: Tokens Tokens_user_fkey; Type: FK CONSTRAINT; Schema: server-state; Owner: -
 --
 
@@ -776,7 +776,7 @@ ALTER TABLE ONLY "server-state"."Tokens"
     ADD CONSTRAINT "Tokens_user_fkey" FOREIGN KEY ("user") REFERENCES "mod-repo"."Users"(id) MATCH FULL;
 
 
--- Completed on 2019-06-18 21:21:27
+-- Completed on 2019-06-19 15:35:47
 
 --
 -- PostgreSQL database dump complete
