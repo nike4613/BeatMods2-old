@@ -13,3 +13,4 @@
 [submodule "BeatMods2-Client"]
 	path = BeatMods2-Client
 	url = git@github.com:raftario/BeatMods2-Client.git
+	branch = master
