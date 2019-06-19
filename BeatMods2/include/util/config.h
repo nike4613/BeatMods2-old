@@ -1,5 +1,5 @@
-#ifndef BEATMODS2_UTIL_CONFIG
-#define BEATMODS2_UTIL_CONFIG
+#ifndef BEATMODS2_UTIL_CONFIG_H
+#define BEATMODS2_UTIL_CONFIG_H
 
 #include <cstddef>
 #include <cstdint>
@@ -22,13 +22,16 @@ namespace BeatMods {
         uint worker_limit_den = 4;
 
         bool use_ssl = false;
-        struct {
+        struct SSL {
             bool https_only = false;
             restbed::Uri private_key {"file:///"};
             restbed::Uri certificate {"file:///"};
             restbed::Uri diffie_hellman {"file:///"};
         } ssl;
-        // TODO: add more SSL settings
+
+        struct Postgres {
+            std::string connection_string = ""; // libpq connection string
+        } postgres;
 
         rapidjson::Document vue_config;
 
@@ -70,6 +73,16 @@ namespace BeatMods {
 
                 write.String("diffie_hellman");
                 write.String(ssl.diffie_hellman.to_string());
+
+                write.EndObject();
+            }
+
+            write.String("postgres");
+            {
+                write.StartObject();
+
+                write.String("connection_string");
+                write.String(postgres.connection_string);
 
                 write.EndObject();
             }

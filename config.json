@@ -10,6 +10,9 @@
         "certificate": "file:///",
         "diffie_hellman": "file:///"
     },
+    "postgres": {
+        "connection_string": ""
+    },
     "vue_config": {
         "test": [
             "vue",

@@ -78,6 +78,18 @@ Config Config::Parse(rapidjson::Document const& doc, UnifiedLogger& logger)
                     continue;
                 }
             }})
+        else TRY_READ_KEY_A(postgres, Object, {
+            for (auto const& [key, value] : value.GetObject())
+            {
+                auto const name = json::get_string(key);
+
+                TRY_READ_KEY(connection_string, postgres.connection_string, String, json::get_string(value))
+                else
+                {
+                    logger.log(Logger::Level::WARNING, "Unknown key '%s' in 'postgres' block; ignoring", name.data());
+                    continue;
+                }
+            }})
         else TRY_READ_KEY_A(vue_config, Object, cfg.vue_config.CopyFrom(value, cfg.vue_config.GetAllocator()))
         else
         {
