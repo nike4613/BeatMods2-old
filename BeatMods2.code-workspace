@@ -13,7 +13,8 @@
 			"iosfwd": "cpp",
 			"*.tcc": "cpp",
 			"cmath": "cpp",
-			"*.ipp": "cpp"
+			"*.ipp": "cpp",
+			"variant": "cpp"
 		}
 	}
 }

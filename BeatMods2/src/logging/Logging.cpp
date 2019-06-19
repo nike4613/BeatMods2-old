@@ -16,7 +16,7 @@ std::string std::to_string(restbed::Logger::Level const& level)
     case restbed::Logger::Level::SECURITY: return "Security";
     }
     
-    assert("Invalid level");
+    assert(false);
     return {};
 }
 
