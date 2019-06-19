@@ -22,10 +22,12 @@ namespace BeatMods {
         uint worker_limit_den = 4;
 
         bool use_ssl = false;
-        bool ssl_https_only = false;
-        restbed::Uri ssl_private_key {"file:///"};
-        restbed::Uri ssl_certificate {"file:///"};
-        restbed::Uri ssl_diffie_hellman {"file:///"};
+        struct {
+            bool https_only = false;
+            restbed::Uri private_key {"file:///"};
+            restbed::Uri certificate {"file:///"};
+            restbed::Uri diffie_hellman {"file:///"};
+        } ssl;
         // TODO: add more SSL settings
 
         rapidjson::Document vue_config;
@@ -58,16 +60,16 @@ namespace BeatMods {
                 write.StartObject();
 
                 write.String("https_only");
-                write.Bool(ssl_https_only);
+                write.Bool(ssl.https_only);
 
                 write.String("private_key");
-                write.String(ssl_private_key.to_string());
+                write.String(ssl.private_key.to_string());
 
                 write.String("certificate");
-                write.String(ssl_certificate.to_string());
+                write.String(ssl.certificate.to_string());
 
                 write.String("diffie_hellman");
-                write.String(ssl_diffie_hellman.to_string());
+                write.String(ssl.diffie_hellman.to_string());
 
                 write.EndObject();
             }

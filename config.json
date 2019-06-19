@@ -5,7 +5,7 @@
     "worker_limit_den": 4,
     "use_ssl": false,
     "ssl": {
-        "https_only": false,
+        "https_only": true,
         "private_key": "file:///",
         "certificate": "file:///",
         "diffie_hellman": "file:///"

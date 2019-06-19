@@ -44,26 +44,32 @@ Config Config::Parse(rapidjson::Document const& doc, UnifiedLogger& logger)
             {
                 auto const name = json::get_string(key);
 
-                TRY_READ_KEY_SC(https_only, ssl_https_only, Bool)
+                TRY_READ_KEY_SC(https_only, ssl.https_only, Bool)
                 else TRY_READ_KEY_A(private_key, String, 
                     try {
-                        cfg.ssl_private_key = restbed::Uri(std::string {json::get_string(value)}, true);
+                        cfg.ssl.private_key = restbed::Uri(std::string {json::get_string(value)}, true);
                     } catch (std::invalid_argument const& e) {
-                        logger.write(Logger::Level::WARNING, "'private_key' not a valid URI; ignoring");
+                        logger.log(Logger::Level::WARNING, 
+                            "Field 'ssl.private_key' ('%s') not a valid URI; ignoring", 
+                            json::get_string(value).data());
                         continue;
                     })
                 else TRY_READ_KEY_A(certificate, String, 
                     try {
-                        cfg.ssl_certificate = restbed::Uri(std::string {json::get_string(value)}, true);
+                        cfg.ssl.certificate = restbed::Uri(std::string {json::get_string(value)}, true);
                     } catch (std::invalid_argument const& e) {
-                        logger.write(Logger::Level::WARNING, "'certificate' not a valid URI; ignoring");
+                        logger.log(Logger::Level::WARNING, 
+                            "Field 'ssl.certificate' ('%s') not a valid URI; ignoring", 
+                            json::get_string(value).data());
                         continue;
                     })
                 else TRY_READ_KEY_A(diffie_hellman, String, 
                     try {
-                        cfg.ssl_diffie_hellman = restbed::Uri(std::string {json::get_string(value)}, true);
+                        cfg.ssl.diffie_hellman = restbed::Uri(std::string {json::get_string(value)}, true);
                     } catch (std::invalid_argument const& e) {
-                        logger.write(Logger::Level::WARNING, "'diffie_hellman' not a valid URI; ignoring");
+                        logger.log(Logger::Level::WARNING, 
+                            "Field 'ssl.diffie_hellman' ('%s') not a valid URI; ignoring", 
+                            json::get_string(value).data());
                         continue;
                     })
                 else

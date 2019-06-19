@@ -94,10 +94,10 @@ int main()
     if (conf.use_ssl)
     {
         auto ssl_settings = std::make_shared<restbed::SSLSettings>();
-        ssl_settings->set_http_disabled(!conf.ssl_https_only);
-        ssl_settings->set_private_key(conf.ssl_private_key);
-        ssl_settings->set_certificate(conf.ssl_certificate);
-        ssl_settings->set_temporary_diffie_hellman(conf.ssl_diffie_hellman);
+        ssl_settings->set_http_disabled(!conf.ssl.https_only);
+        ssl_settings->set_private_key(conf.ssl.private_key);
+        ssl_settings->set_certificate(conf.ssl.certificate);
+        ssl_settings->set_temporary_diffie_hellman(conf.ssl.diffie_hellman);
         
         settings->set_ssl_settings(ssl_settings);
     }

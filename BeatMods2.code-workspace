@@ -11,7 +11,9 @@
 			"string_view": "cpp",
 			"type_traits": "cpp",
 			"iosfwd": "cpp",
-			"*.tcc": "cpp"
+			"*.tcc": "cpp",
+			"cmath": "cpp",
+			"*.ipp": "cpp"
 		}
 	}
 }
