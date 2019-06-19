@@ -50,7 +50,8 @@ namespace BeatMods::db {
     #define _PERMISSIONS(X) \
         X(gameversion_add)  X(gameversion_edit) X(mod_create) X(mod_edit) \
         X(mod_reposess) X(user_delete) X(group_add) X(group_edit) X(group_delete) \
-        X(mod_see_pending) X(mod_approve_deny) X(user_edit_groups) X(news_edit) X(news_add)
+        X(mod_see_pending) X(mod_approve_deny) X(user_edit_groups) X(news_edit) X(news_add) \
+        X(mod_upload_as)
     #define PERMISSIONS(X) EXEC(_PERMISSIONS(X))
     enum class Permission {
         #define M(n) n,

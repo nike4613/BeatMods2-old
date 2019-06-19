@@ -5,7 +5,7 @@
 -- Dumped from database version 11.3
 -- Dumped by pg_dump version 11.2
 
--- Started on 2019-06-19 15:35:47
+-- Started on 2019-06-19 16:17:16
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -173,7 +173,8 @@ CREATE TYPE "mod-repo"."Permission" AS ENUM (
     'mod_approve_deny',
     'user_edit_groups',
     'news_edit',
-    'news_add'
+    'news_add',
+    'mod_upload_as'
 );
 
 
@@ -776,7 +777,7 @@ ALTER TABLE ONLY "server-state"."Tokens"
     ADD CONSTRAINT "Tokens_user_fkey" FOREIGN KEY ("user") REFERENCES "mod-repo"."Users"(id) MATCH FULL;
 
 
--- Completed on 2019-06-19 15:35:47
+-- Completed on 2019-06-19 16:17:17
 
 --
 -- PostgreSQL database dump complete
