@@ -42,3 +42,22 @@ std::string std::to_string(Permission e)
     assert(false);
     return {};
 }
+
+template<typename T>
+std::string serialize_for_lookup(typename T::request const& fields, T const& values);
+template<typename T>
+std::string serialize_for_insert(typename T::request const& fields, T const& values);
+template<typename T>
+T deserialize_from_request(pqxx::row const& row);
+
+template<typename T>
+std::vector<std::shared_ptr<T>> _make_request_instantiable<T>::lookup(
+    pqxx::work const& transaction,
+    typename T::request const& returnFields, 
+    typename T::request const& searchFields,
+    T const& searchValues)
+{
+    // empty for now
+
+    return {};
+}

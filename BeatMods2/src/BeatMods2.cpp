@@ -19,6 +19,8 @@
 
 #include "util/config.h"
 
+#include "db/engine.h"
+
 using namespace BeatMods;
 
 namespace {
@@ -73,6 +75,19 @@ int main()
         std::ifstream configJson {"config.json"};
         if (configJson)
             conf = Config::Parse(configJson, *logger);
+    }
+
+    try
+    {
+        pqxx::connection conn {conf.postgres.connection_string};
+
+        pqxx::work transaction {conn};
+        db::lookup<db::User>(transaction, {});
+    }
+    catch (std::exception const& e)
+    {    
+        std::cerr << e.what() << std::endl;
+        return 1;
     }
 
     auto resc = std::make_shared<restbed::Resource>();

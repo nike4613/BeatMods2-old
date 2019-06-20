@@ -11,7 +11,7 @@
         "diffie_hellman": "file:///"
     },
     "postgres": {
-        "connection_string": ""
+        "connection_string": "host=localhost port=5432 dbname=beatmods-2"
     },
     "vue_config": {
         "test": [
