@@ -22,7 +22,7 @@ SET row_security = off;
 -- Name: beatmods-2; Type: DATABASE; Schema: -; Owner: -
 --
 
-CREATE DATABASE "beatmods-2" WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'English_United States.1252' LC_CTYPE = 'English_United States.1252';
+CREATE DATABASE "beatmods-2" WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'POSIX' LC_CTYPE = 'POSIX';
 
 
 \connect -reuse-previous=on "dbname='beatmods-2'"
