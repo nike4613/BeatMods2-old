@@ -11,7 +11,7 @@ add_executable (BeatMods2
 	"include/util/json.h"
 	"include/util/config.h"		"src/util/config.cpp")
 target_include_directories(BeatMods2 PRIVATE "include")
-target_link_libraries (BeatMods2 restbed-static pqxx_static semver)
+target_link_libraries (BeatMods2 restbed-static pqxx_static semver tz date_interface)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD 17)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD_REQUIRED ON)
 

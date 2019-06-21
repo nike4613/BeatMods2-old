@@ -10,6 +10,8 @@
 #include <rapidjson/document.h>
 #include <optional>
 #include <future>
+#include <date/date.h>
+#include <date/tz.h>
 
 #ifndef EXEC
 #define EXEC(...) __VA_ARGS__
@@ -19,7 +21,7 @@ namespace BeatMods::db {
 
     constexpr int mod_id_length = 128;
 
-    using UUID = std::string; // just a strig containing the uuid
+    using UUID = std::string; // just a string containing the uuid
     using Integer = int32_t;
     using BigInteger = int64_t;
 
@@ -67,6 +69,8 @@ namespace BeatMods::db {
     enum class Visibility {
         Public, Groups
     };
+
+    // TODO: add overloads of pqxx::string_traits<>::to_string and pqxx::string_traits<>::from_string for the above types
 
     // Tables //
 
@@ -271,5 +275,23 @@ namespace std {
     std::string to_string(BeatMods::db::Permission);
 }
 
+namespace pqxx {
+    template<> struct string_traits<BeatMods::db::TimeStamp>
+    {
+        static constexpr const char* date_format() noexcept { return "%Y-%m-%d %T%z"; }
+        static constexpr const char *name() noexcept { return "BeatMods::db::TimeStamp"; }
+        static constexpr bool has_null() noexcept { return false; }
+        static bool is_null(BeatMods::db::TimeStamp) { return false; }
+        [[noreturn]] static std::string null()
+        { internal::throw_null_conversion(name()); }
+        static void from_string(const char Str[], BeatMods::db::TimeStamp& Obj) 
+        { 
+            std::istringstream stream {Str};
+            stream >> date::parse(date_format(), Obj);
+        }
+        static std::string to_string(BeatMods::db::TimeStamp Obj) 
+        { return date::format(date_format(), Obj); }
+    };
+}
 
 #endif

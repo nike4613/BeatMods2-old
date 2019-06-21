@@ -14,3 +14,6 @@
 	path = BeatMods2-Client
 	url = git@github.com:raftario/BeatMods2-Client.git
 	branch = master
+[submodule "extern/date"]
+	path = extern/date
+	url = https://github.com/HowardHinnant/date.git

@@ -71,7 +71,7 @@ namespace {
         pqxx::row const& row, 
         typename T::request const& responseFields,
         bool isFromJoin,
-        size_t colStartOffset = 0);
+        int& colStartOffset);
 
 }
 
@@ -101,7 +101,10 @@ std::vector<std::shared_ptr<T>> _make_request_instantiable<T>::lookup(
     std::vector<std::shared_ptr<T>> deserializedResult {queryResult.size()};
 
     for (auto i = 0; i < queryResult.size(); ++i)
-        deserializedResult[i] = deserialize_from_request<T>(queryResult[i], returnFields, false);
+    {
+        int colId = 0;
+        deserializedResult[i] = deserialize_from_request<T>(queryResult[i], returnFields, false, colId);
+    }
 
     return deserializedResult;
 }
@@ -207,11 +210,20 @@ namespace {
         pqxx::row const& row, 
         typename User::request const& responseFields,
         bool isFromJoin,
-        size_t colStartOffset)
+        int& cid)
     { // prefer deserializing by index
+        auto value = std::make_shared<User>();
 
+        if (responseFields.id)
+            value->id = row[cid++].as(value->id);
+        if (responseFields.name) 
+            value->name = row[cid++].as(value->name);
+        if (responseFields.created)
+            value->created = row[cid++].as(value->created);
+        if (responseFields.githubId)
+            value->githubId = row[cid++].as(value->githubId);
 
-        return nullptr;
+        return value;
     }
 
 }

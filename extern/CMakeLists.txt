@@ -23,3 +23,7 @@ add_subdirectory("semver")
 set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${CMAKE_CURRENT_SOURCE_DIR}/rapidjson/include")
 
 set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS}" PARENT_SCOPE)
+
+set(USE_SYSTEM_TZ_DB ON)
+set(ENABLE_DATE_TESTING OFF)
+add_subdirectory("date")

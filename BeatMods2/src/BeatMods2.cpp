@@ -82,7 +82,10 @@ int main()
         pqxx::connection conn {conf.postgres.connection_string};
 
         pqxx::work transaction {conn};
-        auto result = db::lookup<db::User>(transaction, {.name = true, .created = true});
+        auto result = db::lookup<db::User>(transaction, {.id = true, .name = true, .created = true});
+
+        for (auto user : result)
+            std::cout << user->name << " (" << user->id << "): created " << pqxx::to_string(user->created) << std::endl;
     }
     catch (std::exception const& e)
     {    
