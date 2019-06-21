@@ -238,23 +238,23 @@ namespace BeatMods::db {
 
     template<typename T>
     struct _make_request_instantiable {
-        static std::vector<std::shared_ptr<T>> lookup(
-            pqxx::work const& transaction,
+        [[nodiscard]] static std::vector<std::shared_ptr<T>> lookup(
+            pqxx::transaction_base& transaction,
             typename T::request const& returnFields, 
             typename T::request const& searchFields = {}, 
             T const& searchValues = {});
     };
 
     template<typename T>
-    auto lookup(
-        pqxx::work const& transaction,
+    [[nodiscard]] auto lookup(
+        pqxx::transaction_base& transaction,
         typename T::request const& returnFields, 
         typename T::request const& searchFields = {}, 
         T const& searchValues = {})
     { return _make_request_instantiable<T>::lookup(transaction, returnFields, searchFields, searchValues); }
 
     template struct _make_request_instantiable<User>; // so that i don't have to repeat the signature 5 billion times
-    template struct _make_request_instantiable<GameVersion>;
+    /*template struct _make_request_instantiable<GameVersion>;
     template struct _make_request_instantiable<Mod>;
     template struct _make_request_instantiable<Download>;
     template struct _make_request_instantiable<Group>;
@@ -262,7 +262,7 @@ namespace BeatMods::db {
     template struct _make_request_instantiable<NewsItem>;
     template struct _make_request_instantiable<GameVersion_VisibleGroups_JoinItem>;
     template struct _make_request_instantiable<Mods_Tags_JoinItem>;
-    template struct _make_request_instantiable<Users_Groups_JoinItem>;
+    template struct _make_request_instantiable<Users_Groups_JoinItem>;*/ // TODO: re-enable all of these
 }
 
 namespace std { 

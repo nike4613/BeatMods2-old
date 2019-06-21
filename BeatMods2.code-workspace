@@ -67,7 +67,9 @@
 			"typeinfo": "cpp",
 			"utility": "cpp",
 			"pqxx": "cpp",
-			"connection": "cpp"
+			"connection": "cpp",
+			"hash_map": "cpp",
+			"unordered_set": "cpp"
 		}
 	}
 }
