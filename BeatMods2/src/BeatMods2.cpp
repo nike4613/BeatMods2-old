@@ -86,6 +86,18 @@ int main()
 
         for (auto user : result)
             std::cout << user->name << " (" << user->id << "): created " << pqxx::to_string(user->created) << std::endl;
+            
+        db::User lookupValues;
+        lookupValues.name = "DaNike";
+        result = db::lookup<db::User>(transaction, {.id = true, .created = true, .githubId = true}, "", {.name = true}, &lookupValues, db::PgCompareOp::Like);
+
+        for (auto user : result)
+            std::cout << user->githubId << " (" << user->id << "): created " << pqxx::to_string(user->created) << std::endl;
+            
+        result = db::lookup<db::User>(transaction, {.id = true, .name = true, .created = true});
+
+        for (auto user : result)
+            std::cout << user->name << " (" << user->id << "): created " << pqxx::to_string(user->created) << std::endl;
     }
     catch (std::exception const& e)
     {    

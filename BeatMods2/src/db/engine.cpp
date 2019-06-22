@@ -7,6 +7,41 @@
 
 using namespace BeatMods::db;
 
+std::string BeatMods::db::to_pg_op(PgCompareOp op) 
+{
+    if (op == PgCompareOp::Less) return "<";
+    if (op == PgCompareOp::Greater) return ">";
+    if (op == PgCompareOp::Equal) return "=";
+    if (op == PgCompareOp::LessEqual) return "<=";
+    if (op == PgCompareOp::GreaterEqual) return ">=";
+    if (op == PgCompareOp::NotEqual) return "<>";
+
+    if (op == PgCompareOp::Like) return "LIKE";
+    if (op == PgCompareOp::ILike) return "ILIKE";
+    if (op == PgCompareOp::NotLike) return "NOT LIKE";
+    if (op == PgCompareOp::NotILike) return "NOT ILIKE";
+    if (op == PgCompareOp::Similar) return "SIMILAR TO";
+    if (op == PgCompareOp::NotSimilar) return "NOT SIMILAR TO";
+    if (op == PgCompareOp::PosixRE) return "~*";
+    if (op == PgCompareOp::NotPosixRE) return "!~*";
+
+    std::string part; // all the rest follow a nice pattern
+    if (static_cast<int>(op) & static_cast<int>(PgCompareOp::Distinct))
+        part = "DISTINCT FROM";
+    else if (static_cast<int>(op) & static_cast<int>(PgCompareOp::Null))
+        part = "NULL";
+    else if (static_cast<int>(op) & static_cast<int>(PgCompareOp::True))
+        part = "TRUE";
+    else if (static_cast<int>(op) & static_cast<int>(PgCompareOp::False))
+        part = "FALSE";
+    else if (static_cast<int>(op) & static_cast<int>(PgCompareOp::Unknown))
+        part = "UNKNOWN";
+    assert(part.size() != 0);
+    if (static_cast<int>(op) & static_cast<int>(PgCompareOp::Not))
+        part = "NOT " + part;
+    return "IS " + part;
+}
+
 std::string std::to_string(CompareOp e)
 {
     switch (e)
@@ -60,12 +95,15 @@ namespace {
         pqxx::connection_base& conn, 
         typename T::request const& responseFields, 
         typename T::request const& fields, 
-        T const& values,
-        bool joinPart);
+        T const* values,
+        PgCompareOp compareOp,
+        bool joinPart,
+        std::string_view additionalClauses,
+        int& paramFieldNum);
     template<typename T>
     SerializeResponse serialize_for_insert(
         pqxx::connection_base& conn, 
-        T const& values);
+        T const* values);
     template<typename T>
     std::shared_ptr<T> deserialize_from_request(
         pqxx::row const& row, 
@@ -80,9 +118,12 @@ std::vector<std::shared_ptr<T>> _make_request_instantiable<T>::lookup(
     pqxx::transaction_base& transaction,
     typename T::request const& returnFields, 
     typename T::request const& searchFields,
-    T const& searchValues)
+    T const* searchValues,
+    PgCompareOp compareOp,
+    std::string_view additionalClauses)
 {
-    auto serialized = serialize_for_lookup(transaction.conn(), returnFields, searchFields, searchValues, false);
+    int pf = 1;
+    auto serialized = serialize_for_lookup(transaction.conn(), returnFields, searchFields, searchValues, compareOp, false, additionalClauses, pf);
 
     pqxx::result queryResult;
     switch (serialized.statementType)
@@ -118,7 +159,7 @@ namespace {
         constexpr size_t trSize = sizeof(TR);
         auto vd = reinterpret_cast<uint8_t const*>(&v);
 
-        std::stringstream str {};
+        std::ostringstream str {};
         str << std::setfill('0') << std::hex << std::setw(2);
         for (size_t i = 0; i < trSize; ++i)
             str << static_cast<uint16_t>(vd[i]);
@@ -156,53 +197,125 @@ namespace {
         pqxx::connection_base& conn,
         User::request const& responseFields,
         User::request const& fields,
-        User const& values,
-        bool joinPart)
+        User const* values,
+        PgCompareOp compareOp,
+        bool joinPart,
+        std::string_view additionalClauses,
+        int& paramFieldNum)
     { // currently only works if used on exactly one connection
-        // TODO:: implement joinPart
+        auto whereCount = 0;
+        if (fields.id)          ++whereCount;
+        if (fields.name)        ++whereCount;
+        if (fields.created)     ++whereCount;
+        if (fields.githubId)    ++whereCount;
+        if (whereCount > 0)     assert(values != nullptr);
 
-        std::string name; bool generate = false;
-        auto prepNameIt = lookup_Users_prepared_stmts.find({responseFields, fields});
-        if (prepNameIt == lookup_Users_prepared_stmts.end())
-        { // prepare the statement
-            name = "User-getBy-" + to_string(responseFields) + "-" + to_string(fields);
-
-            std::stringstream sql {};
-            sql << "SELECT ";
-
+        auto generateWhereClause = [&](std::ostringstream& stream, int& fieldNum) {
+            auto op = to_pg_op(compareOp);
+            stream << "(";
             bool fieldBefore = false;
-            if (responseFields.id) {
+            if (fields.id) {
                 fieldBefore = true;
-                sql << "\"id\"";
+                stream << User::table << ".\"id\" " << op << " $" << fieldNum++ << " ";
             }
-            if (responseFields.name) {
-                if (fieldBefore) sql << ",";
+            if (fields.name) {
+                if (fieldBefore) stream << "AND ";
                 fieldBefore = true;
-                sql << "\"name\"";
+                stream << User::table << ".\"name\" " << op << " $" << fieldNum++ << " ";
             }
-            if (responseFields.created){
-                if (fieldBefore) sql << ",";
+            if (fields.created) {
+                if (fieldBefore) stream << "AND ";
                 fieldBefore = true;
-                sql << "\"created\"";
+                stream << User::table << ".\"created\" " << op << " $" << fieldNum++ << " ";
             }
-            if (responseFields.githubId){
-                if (fieldBefore) sql << ",";
+            if (fields.githubId) {
+                if (fieldBefore) stream << "AND ";
                 fieldBefore = true;
-                sql << "\"githubId\"";
+                stream << User::table << ".\"githubId\" " << op << " $" << fieldNum++ << " ";
             }
-            if (!fieldBefore) // no fields requested
-                throw std::runtime_error("No fields requested in lookup");
-            sql << " FROM " << User::table;
-            // TODO: implement WITH clause from fields a values
-            sql << ";";
 
-            conn.prepare(name, sql.str());
+            stream << ")";
+        };
 
-            prepNameIt = lookup_Users_prepared_stmts.insert({{responseFields, fields}, name}).first;
+        auto getWhereValues = [&]() -> std::vector<std::string> {
+            std::vector<std::string> vector; // initialize to the max number of known fields
+            vector.reserve(whereCount); // initialize to the number of fields
+
+            if (fields.id)          vector.push_back(pqxx::to_string(values->id));
+            if (fields.name)        vector.push_back(pqxx::to_string(values->name));
+            if (fields.created)     vector.push_back(pqxx::to_string(values->created));
+            if (fields.githubId)    vector.push_back(pqxx::to_string(values->githubId));
+
+            return vector;
+        };
+
+        auto generateSql = [&](std::string_view moreClauses = "") {
+                std::ostringstream sql {};
+                sql << "SELECT ";
+
+                bool fieldBefore = false;
+                //if (responseFields.id) {
+                    fieldBefore = true; // always request ID
+                    sql << "\"id\"";
+                //}
+                if (responseFields.name) {
+                    if (fieldBefore) sql << ",";
+                    fieldBefore = true;
+                    sql << "\"name\"";
+                }
+                if (responseFields.created) {
+                    if (fieldBefore) sql << ",";
+                    fieldBefore = true;
+                    sql << "\"created\"";
+                }
+                if (responseFields.githubId) {
+                    if (fieldBefore) sql << ",";
+                    fieldBefore = true;
+                    sql << "\"githubId\"";
+                }
+                if (!fieldBefore) // no fields requested
+                    throw std::runtime_error("No fields requested in lookup");
+                sql << " FROM " << User::table;
+                // TODO: implement WHERE clause from fields and values
+                if (whereCount > 0) {
+                    sql << " WHERE ";
+                    generateWhereClause(sql, paramFieldNum);
+                }
+
+                sql << " " << moreClauses << ";";
+                return sql.str();
+        };
+
+        if (!joinPart && additionalClauses.size() == 0)
+        {
+            std::string name; bool generate = false;
+            auto prepNameIt = lookup_Users_prepared_stmts.find({responseFields, fields});
+            if (prepNameIt == lookup_Users_prepared_stmts.end())
+            { // prepare the statement
+                name = "User-getBy-" + to_string(responseFields) + "-" + to_string(fields);
+                conn.prepare(name, generateSql());
+                lookup_Users_prepared_stmts.insert({{responseFields, fields}, name});
+            } else name = prepNameIt->second;
+
+            // TODO: replace {} with values for WHERE clause
+            return {SerializeResponse::kPrepared, name, getWhereValues()};
+        }
+        else if (!joinPart && additionalClauses.size() != 0)
+        {
+            // TODO: replace {} with values for WHERE clause
+            return {SerializeResponse::kNormal, generateSql(additionalClauses), getWhereValues()};
+        }
+        else if (joinPart) 
+        {
+            
+            return {}; // TODO: implement
         }
 
-        // TODO: replace {} with values for WITH clause
-        return {SerializeResponse::kPrepared, name, {}};
+        #ifdef __GNUC__
+        __builtin_unreachable();
+        #endif
+
+        return {}; // should never reach
     }
 
     template<>

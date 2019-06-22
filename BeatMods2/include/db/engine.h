@@ -240,22 +240,65 @@ namespace BeatMods::db {
         };
     };
 
+    // Accessors // 
+
+    enum class PgCompareOp {
+        Not = 1<<0,
+        Less = 1<<1,
+        Greater = 1<<2,
+        Equal = 1<<3,
+        LessEqual = Less|Equal,
+        GreaterEqual = Greater|Equal,
+        NotLess = GreaterEqual,
+        NotGreater = LessEqual,
+        NotLessEqual = Greater,
+        NotGreaterEqual = Less,
+        NotEqual = Not|Equal,
+
+        Distinct = 1<<4,
+        NotDistinct = Not|Distinct,
+        Null = 1<<5,
+        NotNull = Not|Null,
+
+        Like = 1<<6,
+        NotLike = Not|Like,
+        ILike = 1<<12,
+        NotILike = Not|ILike,
+        Similar = 1<<7,
+        NotSimilar = Not|Similar,
+        PosixRE = 1<<8, // always case insensitive match version74
+        NotPosixRE = Not|PosixRE,
+
+        True = 1<<9,
+        False = 1<<10,
+        Unknown = 1<<11,
+        NotTrue = Not|True,
+        NotFalse = Not|False,
+        NotUnknown = Not|Unknown
+    };
+
+    [[nodiscard]] std::string to_pg_op(PgCompareOp);
+
     template<typename T>
     struct _make_request_instantiable {
-        [[nodiscard]] static std::vector<std::shared_ptr<T>> lookup(
+        static std::vector<std::shared_ptr<T>> lookup(
             pqxx::transaction_base& transaction,
             typename T::request const& returnFields, 
             typename T::request const& searchFields = {}, 
-            T const& searchValues = {});
+            T const* searchValues = nullptr,
+            PgCompareOp compareOp = PgCompareOp::Equal,
+            std::string_view additionalClauses = "");
     };
 
     template<typename T>
-    [[nodiscard]] auto lookup(
+    auto lookup(
         pqxx::transaction_base& transaction,
-        typename T::request const& returnFields, 
+        typename T::request const& returnFields,
+        std::string_view additionalClauses = "", 
         typename T::request const& searchFields = {}, 
-        T const& searchValues = {})
-    { return _make_request_instantiable<T>::lookup(transaction, returnFields, searchFields, searchValues); }
+        T const* searchValues = nullptr,
+        PgCompareOp compareOp = PgCompareOp::Equal)
+    { return _make_request_instantiable<T>::lookup(transaction, returnFields, searchFields, searchValues, compareOp, additionalClauses); }
 
     template struct _make_request_instantiable<User>; // so that i don't have to repeat the signature 5 billion times
     /*template struct _make_request_instantiable<GameVersion>;
