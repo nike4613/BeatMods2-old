@@ -340,7 +340,7 @@ namespace {
         return value;
     }
 
-    #define JOIN_GET_RESPONSE(name, type, responseFields, fields, values, conn, compareOp, whereCount) \
+    #define JOIN_GET_RESPONSE(name, remoteId, type, responseFields, fields, values, conn, compareOp, whereCount) \
         SerializeResponse name ## _response; \
         if (responseFields.name ## _resolve || fields.name ## _resolve) { \
             type const* uvalues = nullptr; \
@@ -357,28 +357,28 @@ namespace {
                 compareOp, \
                 true, ""); \
         }
-    #define JOIN_WHERE_PART(name, fields, stream, fieldNum) \
+    #define JOIN_WHERE_PART(name, remoteId, fields, stream, fieldNum) \
         if (fields.name ## _resolve) { \
             if (fieldBefore) stream << "AND "; \
             fieldBefore = true; \
             name ## _response.wherePart(stream, fieldNum); \
         }
-    #define JOIN_WHERE_VALUES(name, vector, fields) \
+    #define JOIN_WHERE_VALUES(name, remoteId, vector, fields) \
         if (fields.name ## _resolve) \
             vector.insert(std::end(vector), std::begin(name ## _response.queryParams), std::end(name ## _response.queryParams)); 
-    #define JOIN_SELECT_PART(name, responseFields, stream) \
+    #define JOIN_SELECT_PART(name, remoteId, responseFields, stream) \
         if (responseFields.name ## _resolve) { \
             if (fieldBefore) stream << ","; \
             fieldBefore = true; \
             name ## _response.selectCols(stream); \
         }
-    #define JOIN_FROM_TABLE(name, stream, responseFields, remoteKey) \
+    #define JOIN_FROM_TABLE(name, remoteId, stream, responseFields) \
         if (responseFields.name ## _resolve) \
             stream << " LEFT JOIN " << decltype(responseFields.name ## _request)::_type::table \
                 << " ON " << std::remove_reference_t<decltype(responseFields)>::_type::table << \
                 ".\"" #name "\" = " << decltype(responseFields.name ## _request)::_type::table << \
-                ".\"" #remoteKey "\"";
-    #define JOIN_DESERIALIZE_FIELD(name, responseFields, value, row, cid) \
+                ".\"" #remoteId "\"";
+    #define JOIN_DESERIALIZE_FIELD(name, remoteId, responseFields, value, row, cid) \
         if (responseFields.name ## _resolve) \
             value->name = \
                 deserialize_from_request<decltype(responseFields.name ## _request)::_type> \
@@ -390,7 +390,7 @@ namespace {
         M(posted, __VA_ARGS__) M(edited, __VA_ARGS__) M(system, __VA_ARGS__) 
     #define NewsItem_FIELDS(M, ...) EXEC(_NewsItem_FIELDS(M, __VA_ARGS__))
     #define _NewsItem_FOREIGN_FIELDS(M, ...) \
-        M(author, __VA_ARGS__)
+        M(author, id, __VA_ARGS__)
     #define NewsItem_FOREIGN_FIELDS(M, ...) EXEC(_NewsItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
 
@@ -459,7 +459,7 @@ namespace {
             generateSelectFields(sql);
             sql << " FROM " << NewsItem::table;
             
-            JOIN_FROM_TABLE(author, sql, responseFields, id); // unfortunately, need to manually spec this
+            NewsItem_FOREIGN_FIELDS(JOIN_FROM_TABLE, sql, responseFields)
             
             if (whereCount > 0) {
                 sql << " WHERE ";
