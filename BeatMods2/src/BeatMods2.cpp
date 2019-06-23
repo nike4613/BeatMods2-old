@@ -82,7 +82,7 @@ int main()
         pqxx::connection conn {conf.postgres.connection_string};
 
         pqxx::work transaction {conn};
-        auto result = db::lookup<db::User>(transaction, {.id = true, .name = true, .created = true});
+        /*auto result = db::lookup<db::User>(transaction, {.id = true, .name = true, .created = true});
 
         for (auto user : result)
             std::cout << user->name << " (" << user->id << "): created " << pqxx::to_string(user->created) << std::endl;
@@ -97,7 +97,36 @@ int main()
         result = db::lookup<db::User>(transaction, {.id = true, .name = true, .created = true});
 
         for (auto user : result)
-            std::cout << user->name << " (" << user->id << "): created " << pqxx::to_string(user->created) << std::endl;
+            std::cout << user->name << " (" << user->id << "): created " << pqxx::to_string(user->created) << std::endl;*/
+        
+        db::NewsItem lookupValues;
+        auto author = std::make_shared<db::User>();
+        lookupValues.author = author;
+        author->name = "Kyle 1413";
+
+        auto result = db::lookup<db::NewsItem>(
+            transaction, 
+            {.id = true, .title = true, .author_resolve = true, .author_request = {.id = true, .name = true}}, 
+            "",
+            {.author_resolve = true, .author_request = {.name = true}}, 
+            &lookupValues, 
+            db::PgCompareOp::Like);
+        for (auto news : result) {
+            auto user = db::get_resolved(news->author);
+            std::cout << news->title << " (" << news->id << ") by " << user->name << " (" << user->id << ")" << std::endl;
+        }
+        author->name = "DaNike";
+        result = db::lookup<db::NewsItem>(
+            transaction, 
+            {.id = true, .title = true, .author_resolve = true, .author_request = {.id = true, .name = true}}, 
+            "",
+            {.author_resolve = true, .author_request = {.name = true}}, 
+            &lookupValues, 
+            db::PgCompareOp::Like);
+        for (auto news : result) {
+            auto user = db::get_resolved(news->author);
+            std::cout << news->title << " (" << news->id << ") by " << user->name << " (" << user->id << ")" << std::endl;
+        }
     }
     catch (std::exception const& e)
     {    
