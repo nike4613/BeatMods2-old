@@ -2,6 +2,7 @@
 #include <map>
 #include <iomanip>
 #include <functional>
+#include <memory>
 
 #define ENUM_STRING_SWITCH_CASE(pre, name) case pre::name: return #name;
 #define ESSC(p,n) ENUM_STRING_SWITCH_CASE(p, n) // just a short form of the above
@@ -165,9 +166,48 @@ std::vector<std::shared_ptr<T>> _make_request_instantiable<T>::lookup(
 
 template<typename T>
 std::string _make_request_instantiable<T>::get_id_string(T const& arg)
-{ return arg.id; } // TODO: specialize for the types that need it
+{ return arg.id; }
+template<>
+std::string _make_request_instantiable<Mod>::get_id_string(Mod const& arg)
+{ return arg.uuid; }
 
 namespace {
+
+    template<typename T, typename IType = decltype(T{}.id)>
+    std::shared_ptr<T> make_cached_shared(IType const& id)
+    {
+        static std::map<IType, std::weak_ptr<T>> ptrCache;
+
+        auto loc = ptrCache.find(id);
+        if (loc != ptrCache.end()) {
+            if (!loc->second.expired())
+                return loc->second.lock();
+            else ptrCache.erase(loc);
+        }
+
+        auto ptr = std::make_shared<T>();
+        ptr->id = id;
+        ptrCache.insert({id, ptr});
+        return ptr;
+    }
+    
+    template<>
+    std::shared_ptr<Mod> make_cached_shared<Mod, UUID>(UUID const& id)
+    {
+        static std::map<UUID, std::weak_ptr<Mod>> ptrCache;
+
+        auto loc = ptrCache.find(id);
+        if (loc != ptrCache.end()) {
+            if (!loc->second.expired())
+                return loc->second.lock();
+            else ptrCache.erase(loc);
+        }
+
+        auto ptr = std::make_shared<Mod>();
+        ptr->uuid = id;
+        ptrCache.insert({id, ptr});
+        return ptr;
+    }
 
     template<typename TR,
         typename = std::enable_if_t<std::is_same_v<typename TR::_type::request, TR>>>
@@ -231,9 +271,6 @@ namespace {
         M(name, __VA_ARGS__) M(created, __VA_ARGS__) M(githubId, __VA_ARGS__)
     #define Users_FIELDS(M, ...) EXEC(_Users_FIELDS(M, __VA_ARGS__))
 
-    // TODO: fix this to work across connections
-    // cache to keep track of prepped statements
-    prepared_name_cache<User> lookup_Users_prepared_stmts {};
     template<>
     SerializeResponse serialize_for_lookup(
         pqxx::connection_base& conn,
@@ -298,20 +335,7 @@ namespace {
             return sql.str();
         };
 
-        if (!joinPart && additionalClauses.size() == 0)
-        {
-            std::string name; bool generate = false;
-            auto prepNameIt = lookup_Users_prepared_stmts.find({responseFields, fields});
-            if (prepNameIt == lookup_Users_prepared_stmts.end())
-            { // prepare the statement
-                name = "User-getBy-" + to_string(responseFields) + "-" + to_string(fields);
-                conn.prepare(name, generateSql());
-                lookup_Users_prepared_stmts.insert({{responseFields, fields}, name});
-            } else name = prepNameIt->second;
-
-            return {SerializeResponse::kPrepared, name, getWhereValues()};
-        }
-        else if (!joinPart && additionalClauses.size() != 0)
+        if (!joinPart) // Don't use prepared because normal is probably faster
             return {SerializeResponse::kNormal, generateSql(additionalClauses), getWhereValues()};
         else if (joinPart) 
             return {SerializeResponse::kJoinPart, User::table, getWhereValues(), generateSelectFields, generateWhereClause};
@@ -330,13 +354,8 @@ namespace {
         bool isFromJoin,
         int& cid)
     { // prefer deserializing by index
-        auto value = std::make_shared<User>();
-        // TODO: implement ID based pointer caching
-
-        //if (responseFields.id)
-            value->id = row[cid++].as(value->id); // id is always requested
+        auto value = make_cached_shared<User>(row[cid++].as<decltype(User{}.id)>());
         Users_FIELDS(BASIC_DESERIALIZE_FIELD, responseFields, row, value, cid)
-
         return value;
     }
 
@@ -394,9 +413,6 @@ namespace {
     #define NewsItem_FOREIGN_FIELDS(M, ...) EXEC(_NewsItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
 
-    // TODO: fix this to work across connections
-    // cache to keep track of prepped statements
-    prepared_name_cache<NewsItem> lookup_NewsItems_prepared_stmts {};
     template<>
     SerializeResponse serialize_for_lookup(
         pqxx::connection_base& conn,
@@ -406,7 +422,7 @@ namespace {
         PgCompareOp compareOp,
         bool joinPart,
         std::string_view additionalClauses)
-    { // currently only works if used on exactly one connection
+    { 
         auto whereCount = 0;
         if (fields.id)      ++whereCount;
         NewsItem_FIELDS(COUNT_WHERE_CLAUSE, fields, whereCount)
@@ -423,9 +439,7 @@ namespace {
                 stream << NewsItem::table << ".\"id\" " << op << " $" << fieldNum++ << " ";
             }
             NewsItem_FIELDS(WHERE_CLAUSE_FIELD, NewsItem, op, fields, stream, fieldNum)
-
             NewsItem_FOREIGN_FIELDS(JOIN_WHERE_PART, fields, stream, fieldNum);
-
             stream << ")";
         };
 
@@ -471,29 +485,10 @@ namespace {
             return sql.str();
         };
 
-        if (!joinPart && additionalClauses.size() == 0)
-        {
-            std::string name; bool generate = false;
-            auto prepNameIt = lookup_NewsItems_prepared_stmts.find({responseFields, fields});
-            if (prepNameIt == lookup_NewsItems_prepared_stmts.end())
-            { // prepare the statement
-                name = "NewsItem-getBy-" + to_string(responseFields) + "-" + to_string(fields);
-                conn.prepare(name, generateSql());
-                lookup_NewsItems_prepared_stmts.insert({{responseFields, fields}, name});
-            } else name = prepNameIt->second;
-
-            return {SerializeResponse::kPrepared, name, getWhereValues()};
-        }
-        else if (!joinPart && additionalClauses.size() != 0)
+        if (!joinPart)
             return {SerializeResponse::kNormal, generateSql(additionalClauses), getWhereValues()};
-        else if (joinPart) 
+        else // if (joinPart) 
             return {SerializeResponse::kJoinPart, NewsItem::table, getWhereValues(), generateSelectFields, generateWhereClause};
-
-        #ifdef __GNUC__
-        __builtin_unreachable();
-        #endif
-
-        return {}; // should never reach
     }
 
     template<>
@@ -503,14 +498,9 @@ namespace {
         bool isFromJoin,
         int& cid)
     { // prefer deserializing by index
-        auto value = std::make_shared<NewsItem>();
-        // TODO: implement ID based pointer caching
-
-        //if (responseFields.id)
-            value->id = row[cid++].as(value->id); // id is always requested
+        auto value = make_cached_shared<NewsItem>(row[cid++].as<decltype(NewsItem{}.id)>());
         NewsItem_FIELDS(BASIC_DESERIALIZE_FIELD, responseFields, row, value, cid)
         NewsItem_FOREIGN_FIELDS(JOIN_DESERIALIZE_FIELD, responseFields, value, row, cid)
-
         return value;
     }
 
