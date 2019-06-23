@@ -266,99 +266,6 @@ namespace {
         if (responseFields.name) \
             value->name = row[cid++].as(value->name);
 
-    // only has non-id fields
-    #define _Users_FIELDS(M, ...) \
-        M(name, __VA_ARGS__) M(created, __VA_ARGS__) M(githubId, __VA_ARGS__)
-    #define Users_FIELDS(M, ...) EXEC(_Users_FIELDS(M, __VA_ARGS__))
-
-    template<>
-    SerializeResponse serialize_for_lookup(
-        pqxx::connection_base& conn,
-        User::request const& responseFields,
-        User::request const& fields,
-        User const* values,
-        PgCompareOp compareOp,
-        bool joinPart,
-        std::string_view additionalClauses)
-    { // currently only works if used on exactly one connection
-        auto whereCount = 0;
-        if (fields.id) ++whereCount;
-        Users_FIELDS(COUNT_WHERE_CLAUSE, fields, whereCount)
-        if (whereCount > 0) sassert(values != nullptr);
-
-        auto generateWhereClause = [=](std::basic_ostream<char>& stream, int& fieldNum) {
-            auto op = to_pg_op(compareOp);
-            stream << "(";
-            bool fieldBefore = false;
-            if (fields.id) {
-                fieldBefore = true;
-                stream << User::table << ".\"id\" " << op << " $" << fieldNum++ << " ";
-            }
-            Users_FIELDS(WHERE_CLAUSE_FIELD, User, op, fields, stream, fieldNum)
-
-            stream << ")";
-        };
-
-        auto getWhereValues = [&]() -> std::vector<std::string> {
-            std::vector<std::string> vector; // initialize to the max number of known fields
-            vector.reserve(whereCount); // initialize to the number of fields
-
-            if (fields.id) vector.push_back(pqxx::to_string(values->id));
-            Users_FIELDS(WHERE_VALUES_FIELD, values, fields, vector)
-            return vector;
-        };
-
-        auto generateSelectFields = [=](std::basic_ostream<char>& stream) {
-            bool fieldBefore = false;
-            //if (responseFields.id) {
-                fieldBefore = true; // always request ID
-                stream << User::table << ".\"id\"";
-            //}
-            Users_FIELDS(SELECT_CLAUSE_FIELD, User, responseFields, stream)
-            if (!fieldBefore) // no fields requested
-                throw std::runtime_error("No fields requested in lookup");
-        };
-
-        auto generateSql = [&](std::string_view moreClauses = "") {
-            std::ostringstream sql {};
-            sql << "SELECT ";
-            generateSelectFields(sql);
-            sql << " FROM " << User::table;
-            
-            if (whereCount > 0) {
-                sql << " WHERE ";
-                int i = 1;
-                generateWhereClause(sql, i);
-            }
-
-            sql << " " << moreClauses << ";";
-            return sql.str();
-        };
-
-        if (!joinPart) // Don't use prepared because normal is probably faster
-            return {SerializeResponse::kNormal, generateSql(additionalClauses), getWhereValues()};
-        else if (joinPart) 
-            return {SerializeResponse::kJoinPart, User::table, getWhereValues(), generateSelectFields, generateWhereClause};
-
-        #ifdef __GNUC__
-        __builtin_unreachable();
-        #endif
-
-        return {}; // should never reach
-    }
-
-    template<>
-    std::shared_ptr<User> deserialize_from_request(
-        pqxx::row const& row, 
-        typename User::request const& responseFields,
-        bool isFromJoin,
-        int& cid)
-    { // prefer deserializing by index
-        auto value = make_cached_shared<User>(row[cid++].as<decltype(User{}.id)>());
-        Users_FIELDS(BASIC_DESERIALIZE_FIELD, responseFields, row, value, cid)
-        return value;
-    }
-
     #define JOIN_GET_RESPONSE(name, remoteId, type, responseFields, fields, values, conn, compareOp, whereCount) \
         SerializeResponse name ## _response; \
         if (responseFields.name ## _resolve || fields.name ## _resolve) { \
@@ -403,7 +310,99 @@ namespace {
                 deserialize_from_request<decltype(responseFields.name ## _request)::_type> \
                     (row, responseFields.name ## _request, true, cid);
 
-    // only has non-id fields
+    #define SPECIALIZE_SERIALIZERS_FOR(_TYPE, idField) \
+        template<> \
+        SerializeResponse serialize_for_lookup( \
+            pqxx::connection_base& conn, \
+            _TYPE::request const& responseFields, \
+            _TYPE::request const& fields, \
+            _TYPE const* values, \
+            PgCompareOp compareOp, \
+            bool joinPart, \
+            std::string_view additionalClauses) \
+        { \
+            auto whereCount = 0; \
+            if (fields.idField) ++whereCount; \
+            EXEC(_TYPE##_FIELDS (COUNT_WHERE_CLAUSE, fields, whereCount)) \
+            if (whereCount > 0) sassert(values != nullptr); \
+            \
+            EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_GET_RESPONSE, User, responseFields, fields, values, conn, compareOp, whereCount)) \
+            \
+            auto generateWhereClause = [=](std::basic_ostream<char>& stream, int& fieldNum) { \
+                auto op = to_pg_op(compareOp); \
+                stream << "("; \
+                bool fieldBefore = false; \
+                if (fields.idField) { \
+                    fieldBefore = true; \
+                    stream << _TYPE::table << ".\"" #idField "\" " << op << " $" << fieldNum++ << " "; \
+                } \
+                EXEC(_TYPE##_FIELDS (WHERE_CLAUSE_FIELD, _TYPE, op, fields, stream, fieldNum)) \
+                EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_WHERE_PART, fields, stream, fieldNum)); \
+                stream << ")"; \
+            }; \
+            \
+            auto getWhereValues = [&]() -> std::vector<std::string> { \
+                std::vector<std::string> vector; /* initialize to the max number of known fields */ \
+                vector.reserve(whereCount); /* initialize to the number of fields */ \
+                \
+                if (fields.idField) vector.push_back(pqxx::to_string(values->idField)); \
+                EXEC(_TYPE##_FIELDS (WHERE_VALUES_FIELD, values, fields, vector)) \
+                EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_WHERE_VALUES, vector, fields)); \
+                \
+                return vector; \
+            }; \
+            \
+            auto generateSelectFields = [=](std::basic_ostream<char>& stream) { \
+                bool fieldBefore = true; \
+                stream << _TYPE::table << ".\"" #idField "\""; \
+                EXEC(_TYPE##_FIELDS (SELECT_CLAUSE_FIELD, _TYPE, responseFields, stream)) \
+                EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_SELECT_PART, responseFields, stream)); \
+                if (!fieldBefore) /* no fields requested */ \
+                    throw std::runtime_error("No fields requested in lookup"); \
+            }; \
+            \
+            auto generateSql = [&](std::string_view moreClauses = "") { \
+                std::ostringstream sql {}; \
+                sql << "SELECT "; \
+                generateSelectFields(sql); \
+                sql << " FROM " << _TYPE::table; \
+                \
+                EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_FROM_TABLE, sql, responseFields)) \
+                \
+                if (whereCount > 0) { \
+                    sql << " WHERE "; \
+                    int i = 1; \
+                    generateWhereClause(sql, i); \
+                } \
+                \
+                sql << " " << moreClauses << ";"; \
+                return sql.str(); \
+            }; \
+            \
+            if (!joinPart) \
+                return {SerializeResponse::kNormal, generateSql(additionalClauses), getWhereValues()}; \
+            else \
+                return {SerializeResponse::kJoinPart, _TYPE::table, getWhereValues(), generateSelectFields, generateWhereClause}; \
+        } \
+        \
+        template<> \
+        std::shared_ptr<_TYPE> deserialize_from_request( \
+            pqxx::row const& row, \
+            typename _TYPE::request const& responseFields, \
+            bool isFromJoin, \
+            int& cid) \
+        { /* prefer deserializing by index */ \
+            auto value = make_cached_shared<_TYPE>(row[cid++].as<decltype(_TYPE{}.idField)>()); \
+            EXEC(_TYPE##_FIELDS (BASIC_DESERIALIZE_FIELD, responseFields, row, value, cid)) \
+            EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_DESERIALIZE_FIELD, responseFields, value, row, cid)) \
+            return value; \
+        }
+    
+    #define _User_FIELDS(M, ...) \
+        M(name, __VA_ARGS__) M(created, __VA_ARGS__) M(githubId, __VA_ARGS__)
+    #define User_FIELDS(M, ...) EXEC(_User_FIELDS(M, __VA_ARGS__))
+    #define User_FOREIGN_FIELDS(M, ...)
+
     #define _NewsItem_FIELDS(M, ...) \
         M(title, __VA_ARGS__) M(author, __VA_ARGS__) M(body, __VA_ARGS__) \
         M(posted, __VA_ARGS__) M(edited, __VA_ARGS__) M(system, __VA_ARGS__) 
@@ -412,96 +411,7 @@ namespace {
         M(author, id, __VA_ARGS__)
     #define NewsItem_FOREIGN_FIELDS(M, ...) EXEC(_NewsItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-
-    template<>
-    SerializeResponse serialize_for_lookup(
-        pqxx::connection_base& conn,
-        NewsItem::request const& responseFields,
-        NewsItem::request const& fields,
-        NewsItem const* values,
-        PgCompareOp compareOp,
-        bool joinPart,
-        std::string_view additionalClauses)
-    { 
-        auto whereCount = 0;
-        if (fields.id)      ++whereCount;
-        NewsItem_FIELDS(COUNT_WHERE_CLAUSE, fields, whereCount)
-        if (whereCount > 0) sassert(values != nullptr);
-
-        NewsItem_FOREIGN_FIELDS(JOIN_GET_RESPONSE, User, responseFields, fields, values, conn, compareOp, whereCount)
-
-        auto generateWhereClause = [=](std::basic_ostream<char>& stream, int& fieldNum) {
-            auto op = to_pg_op(compareOp);
-            stream << "(";
-            bool fieldBefore = false;
-            if (fields.id) {
-                fieldBefore = true;
-                stream << NewsItem::table << ".\"id\" " << op << " $" << fieldNum++ << " ";
-            }
-            NewsItem_FIELDS(WHERE_CLAUSE_FIELD, NewsItem, op, fields, stream, fieldNum)
-            NewsItem_FOREIGN_FIELDS(JOIN_WHERE_PART, fields, stream, fieldNum);
-            stream << ")";
-        };
-
-        auto getWhereValues = [&]() -> std::vector<std::string> {
-            std::vector<std::string> vector; // initialize to the max number of known fields
-            vector.reserve(whereCount); // initialize to the number of fields
-
-            if (fields.id) vector.push_back(pqxx::to_string(values->id));
-            NewsItem_FIELDS(WHERE_VALUES_FIELD, values, fields, vector)
-            
-            NewsItem_FOREIGN_FIELDS(JOIN_WHERE_VALUES, vector, fields);
-
-            return vector;
-        };
-
-        auto generateSelectFields = [=](std::basic_ostream<char>& stream) {
-            bool fieldBefore = false;
-            //if (responseFields.id) {
-                fieldBefore = true; // always request ID
-                stream << NewsItem::table << ".\"id\"";
-            //}
-            NewsItem_FIELDS(SELECT_CLAUSE_FIELD, NewsItem, responseFields, stream)
-            NewsItem_FOREIGN_FIELDS(JOIN_SELECT_PART, responseFields, stream);
-            if (!fieldBefore) // no fields requested
-                throw std::runtime_error("No fields requested in lookup");
-        };
-
-        auto generateSql = [&](std::string_view moreClauses = "") {
-            std::ostringstream sql {};
-            sql << "SELECT ";
-            generateSelectFields(sql);
-            sql << " FROM " << NewsItem::table;
-            
-            NewsItem_FOREIGN_FIELDS(JOIN_FROM_TABLE, sql, responseFields)
-            
-            if (whereCount > 0) {
-                sql << " WHERE ";
-                int i = 1;
-                generateWhereClause(sql, i);
-            }
-
-            sql << " " << moreClauses << ";";
-            return sql.str();
-        };
-
-        if (!joinPart)
-            return {SerializeResponse::kNormal, generateSql(additionalClauses), getWhereValues()};
-        else // if (joinPart) 
-            return {SerializeResponse::kJoinPart, NewsItem::table, getWhereValues(), generateSelectFields, generateWhereClause};
-    }
-
-    template<>
-    std::shared_ptr<NewsItem> deserialize_from_request(
-        pqxx::row const& row, 
-        typename NewsItem::request const& responseFields,
-        bool isFromJoin,
-        int& cid)
-    { // prefer deserializing by index
-        auto value = make_cached_shared<NewsItem>(row[cid++].as<decltype(NewsItem{}.id)>());
-        NewsItem_FIELDS(BASIC_DESERIALIZE_FIELD, responseFields, row, value, cid)
-        NewsItem_FOREIGN_FIELDS(JOIN_DESERIALIZE_FIELD, responseFields, value, row, cid)
-        return value;
-    }
+    SPECIALIZE_SERIALIZERS_FOR(User, id)
+    SPECIALIZE_SERIALIZERS_FOR(NewsItem, id)
 
 }

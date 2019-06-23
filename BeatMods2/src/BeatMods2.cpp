@@ -108,7 +108,7 @@ int main()
             db::PgCompareOp::Like);
 
         for (auto news : result2) {
-            auto user = db::get_resolved(news->author);
+            auto user = db::get_resolved(news->author); // notice that creation time was not requested by this last request! the same object was used from the previous one
             std::cout << news->title << " (" << news->id << ") by " << user->name << " (" << user->id << ") created " << pqxx::to_string(user->created) << std::endl;
         }
     }
