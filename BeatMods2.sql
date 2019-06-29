@@ -419,7 +419,7 @@ ALTER SEQUENCE "mod-repo"."Tags_id_seq" OWNED BY "mod-repo"."Tags".id;
 CREATE TABLE "mod-repo"."Users" (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     name text NOT NULL,
-    profile text DEFAULT '',
+    profile text DEFAULT '' NOT NULL,
     created timestamp with time zone DEFAULT now() NOT NULL,
     "githubId" text NOT NULL
 );
