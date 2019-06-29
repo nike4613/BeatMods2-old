@@ -96,13 +96,14 @@ namespace BeatMods::db {
     struct User {
         UUID id; // PKey (when creating, this is never used; instead DB default is)
         std::string name; // Unique
+        std::string profile;
         TimeStamp created;
         std::string githubId;
 
         static constexpr char const* table = "\"mod-repo\".\"Users\"";
         struct request {
             using _type = User;
-            bool id:1; bool name:1; bool created:1; bool githubId:1;
+            bool id:1; bool name:1; bool profile:1; bool created:1; bool githubId:1;
         };
     };
     

@@ -97,7 +97,7 @@ int main()
             author.get(), 
             db::PgCompareOp::Like);
         for (auto user : result) {
-            std::cout << user->name << " (" << user->id << ") created " << pqxx::to_string(user->created) << std::endl;
+            std::cout << user->name << " (" << user->id << ") created " << pqxx::to_string(user->created) << std::endl << user->profile << std::endl;
         }
 
         auto result2 = db::lookup<db::NewsItem>(
