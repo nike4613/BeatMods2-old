@@ -14,6 +14,7 @@
 #include <date/tz.h>
 #include <exception>
 #include <typeinfo>
+#include <cstring>
 
 #ifndef EXEC
 #define EXEC(...) __VA_ARGS__
@@ -298,6 +299,14 @@ namespace BeatMods::db {
     [[nodiscard]] std::string to_pg_op(PgCompareOp);
 
     template<typename T>
+    struct id_type { using type = decltype(T{}.id); };
+    template<>
+    struct id_type<Mod> { using type = decltype(Mod{}.uuid); };
+
+    template<typename T>
+    using id_type_t = typename id_type<T>::type;
+
+    template<typename T>
     struct _make_request_instantiable {
         static std::vector<std::shared_ptr<T>> lookup(
             pqxx::transaction_base& transaction,
@@ -306,7 +315,9 @@ namespace BeatMods::db {
             T const* searchValues = nullptr,
             PgCompareOp compareOp = PgCompareOp::Equal,
             std::string_view additionalClauses = "");
-        static std::string get_id_string(T const&);
+        using IdType = id_type_t<T>;
+        static IdType& id(T&);
+        static IdType const& id(T const&);
     };
 
     template<typename T>
@@ -320,15 +331,19 @@ namespace BeatMods::db {
     { return _make_request_instantiable<T>::lookup(transaction, returnFields, searchFields, searchValues, compareOp, additionalClauses); }
 
     template<typename T>
-    auto get_id_string(T const& arg) { return _make_request_instantiable<T>::get_id_string(arg); }
+    auto& id(T& arg) { return _make_request_instantiable<T>::id(arg); }
+    template<typename T>
+    auto const& id(T const& arg) { return _make_request_instantiable<T>::id(arg); }
 
     template struct _make_request_instantiable<User>; // so that i don't have to repeat the signature 5 billion times
-    /*template struct _make_request_instantiable<GameVersion>;
+    template struct _make_request_instantiable<NewsItem>;
+    template struct _make_request_instantiable<Tag>;
+    template struct _make_request_instantiable<Group>;
+    template struct _make_request_instantiable<GameVersion>;
+    /*
     template struct _make_request_instantiable<Mod>;
     template struct _make_request_instantiable<Download>;
-    template struct _make_request_instantiable<Group>;
-    template struct _make_request_instantiable<Tag>;*/
-    template struct _make_request_instantiable<NewsItem>;
+    */
     /*template struct _make_request_instantiable<GameVersion_VisibleGroups_JoinItem>;
     template struct _make_request_instantiable<Mods_Tags_JoinItem>;
     template struct _make_request_instantiable<Users_Groups_JoinItem>;*/ // TODO: re-enable all of these
@@ -339,60 +354,7 @@ namespace std {
     std::string to_string(BeatMods::db::DownloadType);
     std::string to_string(BeatMods::db::Permission);
     std::string to_string(BeatMods::db::System);
-}
-
-namespace pqxx {
-    template<> struct string_traits<BeatMods::db::TimeStamp>
-    {
-        static constexpr const char* date_format() noexcept { return "%Y-%m-%d %T%z"; }
-        static constexpr const char *name() noexcept { return "BeatMods::db::TimeStamp"; }
-        static constexpr bool has_null() noexcept { return false; }
-        static bool is_null(BeatMods::db::TimeStamp) { return false; }
-        [[noreturn]] static std::string null()
-        { internal::throw_null_conversion(name()); }
-        static void from_string(const char Str[], BeatMods::db::TimeStamp& Obj) 
-        { 
-            std::istringstream stream {Str};
-            stream >> date::parse(date_format(), Obj);
-        }
-        static std::string to_string(BeatMods::db::TimeStamp Obj) 
-        { return date::format(date_format(), Obj); }
-    };
-    #define ENUM_FROM_STRING(type, value, inp, outp) if (std::string{inp} == #value) outp = type::value;
-    template<> struct string_traits<BeatMods::db::System>
-    {
-        static constexpr const char *name() noexcept { return "BeatMods::db::System"; }
-        static constexpr bool has_null() noexcept { return false; }
-        static bool is_null(BeatMods::db::System) { return false; }
-        [[noreturn]] static std::string null()
-        { internal::throw_null_conversion(name()); }
-        static void from_string(const char Str[], BeatMods::db::System& Obj) 
-        { 
-            ENUM_FROM_STRING(BeatMods::db::System, PC, Str, Obj)
-            else ENUM_FROM_STRING(BeatMods::db::System, Quest, Str, Obj)
-            else Obj = BeatMods::db::System::PC; // default 
-        }
-        static std::string to_string(BeatMods::db::System Obj) 
-        { return std::to_string(Obj); }
-    };
-    template<typename TR, typename TU> 
-    struct string_traits<BeatMods::db::foreign_key<TR, TU>>
-    {
-        static constexpr const char *name() noexcept 
-        { return "BeatMods::db::foreign_key"; }
-        static constexpr bool has_null() noexcept { return false; }
-        static bool is_null(BeatMods::db::foreign_key<TR, TU>) { return false; }
-        [[noreturn]] static std::string null()
-        { internal::throw_null_conversion(name()); }
-        static void from_string(const char Str[], BeatMods::db::foreign_key<TR, TU>& Obj) 
-        { TU val; pqxx::string_traits<TU>::from_string(Str, val); Obj = val; }
-        static std::string to_string(BeatMods::db::foreign_key<TR, TU> const& Obj) 
-        {
-            auto tres = std::get_if<std::shared_ptr<TR>>(&Obj);
-            if (tres)   return BeatMods::db::get_id_string(**tres);
-            else        return pqxx::to_string(std::get<TU>(Obj));
-        }
-    };
+    std::string to_string(BeatMods::db::Visibility);
 }
 
 #endif

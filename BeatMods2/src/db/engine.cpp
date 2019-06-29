@@ -1,4 +1,5 @@
 #include "db/engine.h"
+#include "db/string_traits.h"
 #include <map>
 #include <iomanip>
 #include <functional>
@@ -78,6 +79,18 @@ std::string std::to_string(System e)
     {
         ESSC(System, PC);
         ESSC(System, Quest);
+    }
+
+    sassert(false);
+    return {};
+}
+
+std::string std::to_string(Visibility e)
+{
+    switch (e)
+    {
+        ESSC(Visibility, Public);
+        ESSC(Visibility, Groups);
     }
 
     sassert(false);
@@ -165,15 +178,22 @@ std::vector<std::shared_ptr<T>> _make_request_instantiable<T>::lookup(
 }
 
 template<typename T>
-std::string _make_request_instantiable<T>::get_id_string(T const& arg)
+typename _make_request_instantiable<T>::IdType& _make_request_instantiable<T>::id(T& arg)
 { return arg.id; }
 template<>
-std::string _make_request_instantiable<Mod>::get_id_string(Mod const& arg)
+typename _make_request_instantiable<Mod>::IdType& _make_request_instantiable<Mod>::id(Mod& arg)
+{ return arg.uuid; }
+
+template<typename T>
+typename _make_request_instantiable<T>::IdType const& _make_request_instantiable<T>::id(T const& arg)
+{ return arg.id; }
+template<>
+typename _make_request_instantiable<Mod>::IdType const& _make_request_instantiable<Mod>::id(Mod const& arg)
 { return arg.uuid; }
 
 namespace {
 
-    template<typename T, typename IType = decltype(T{}.id)>
+    template<typename T, typename IType = id_type_t<T>>
     std::shared_ptr<T> make_cached_shared(IType const& id)
     {
         static std::map<IType, std::weak_ptr<T>> ptrCache;
@@ -186,25 +206,7 @@ namespace {
         }
 
         auto ptr = std::make_shared<T>();
-        ptr->id = id;
-        ptrCache.insert({id, ptr});
-        return ptr;
-    }
-    
-    template<>
-    std::shared_ptr<Mod> make_cached_shared<Mod, UUID>(UUID const& id)
-    {
-        static std::map<UUID, std::weak_ptr<Mod>> ptrCache;
-
-        auto loc = ptrCache.find(id);
-        if (loc != ptrCache.end()) {
-            if (!loc->second.expired())
-                return loc->second.lock();
-            else ptrCache.erase(loc);
-        }
-
-        auto ptr = std::make_shared<Mod>();
-        ptr->uuid = id;
+        BeatMods::db::id(*ptr) = id;
         ptrCache.insert({id, ptr});
         return ptr;
     }
@@ -243,9 +245,6 @@ namespace {
             return false;
         }
     };
-
-    template<typename T>
-    using prepared_name_cache = std::map<std::pair<typename T::request, typename T::request>, std::string, comparator<typename T::request>>;
 
     #define COUNT_WHERE_CLAUSE(name, fields, whereCount) if (fields.name) ++whereCount;
     #define WHERE_CLAUSE_FIELD(name, type, op, fields, stream, fieldNum) \
@@ -310,7 +309,7 @@ namespace {
                 deserialize_from_request<decltype(responseFields.name ## _request)::_type> \
                     (row, responseFields.name ## _request, true, cid);
 
-    #define SPECIALIZE_SERIALIZERS_FOR(_TYPE, idField) \
+    #define SPECIALIZE_SERIALIZER_FOR(_TYPE, idField, auto_ID) \
         template<> \
         SerializeResponse serialize_for_lookup( \
             pqxx::connection_base& conn, \
@@ -332,10 +331,11 @@ namespace {
                 auto op = to_pg_op(compareOp); \
                 stream << "("; \
                 bool fieldBefore = false; \
-                if (fields.idField) { \
-                    fieldBefore = true; \
-                    stream << _TYPE::table << ".\"" #idField "\" " << op << " $" << fieldNum++ << " "; \
-                } \
+                if constexpr (auto_ID) \
+                    if (fields.idField) { \
+                        fieldBefore = true; \
+                        stream << _TYPE::table << ".\"" #idField "\" " << op << " $" << fieldNum++ << " "; \
+                    } \
                 EXEC(_TYPE##_FIELDS (WHERE_CLAUSE_FIELD, _TYPE, op, fields, stream, fieldNum)) \
                 EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_WHERE_PART, fields, stream, fieldNum)); \
                 stream << ")"; \
@@ -353,8 +353,11 @@ namespace {
             }; \
             \
             auto generateSelectFields = [=](std::basic_ostream<char>& stream) { \
-                bool fieldBefore = true; \
-                stream << _TYPE::table << ".\"" #idField "\""; \
+                bool fieldBefore = false; \
+                if constexpr (auto_ID) { \
+                    fieldBefore = true; \
+                    stream << _TYPE::table << ".\"" #idField "\""; \
+                } \
                 EXEC(_TYPE##_FIELDS (SELECT_CLAUSE_FIELD, _TYPE, responseFields, stream)) \
                 EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_SELECT_PART, responseFields, stream)); \
                 if (!fieldBefore) /* no fields requested */ \
@@ -383,8 +386,9 @@ namespace {
                 return {SerializeResponse::kNormal, generateSql(additionalClauses), getWhereValues()}; \
             else \
                 return {SerializeResponse::kJoinPart, _TYPE::table, getWhereValues(), generateSelectFields, generateWhereClause}; \
-        } \
-        \
+        } 
+
+    #define SPECIALIZE_DESERIALIZER_FOR(_TYPE, idField, CREATE_FROM_ID) \
         template<> \
         std::shared_ptr<_TYPE> deserialize_from_request( \
             pqxx::row const& row, \
@@ -392,16 +396,22 @@ namespace {
             bool isFromJoin, \
             int& cid) \
         { /* prefer deserializing by index */ \
-            auto value = make_cached_shared<_TYPE>(row[cid++].as<decltype(_TYPE{}.idField)>()); \
+            auto value = EXEC(CREATE_FROM_ID(_TYPE, idField)); \
             EXEC(_TYPE##_FIELDS (BASIC_DESERIALIZE_FIELD, responseFields, row, value, cid)) \
             EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_DESERIALIZE_FIELD, responseFields, value, row, cid)) \
             return value; \
         }
     
+    #define DEFAULT_CREATE_FROM_ID(_TYPE, idField) make_cached_shared<_TYPE>(row[cid++].as<decltype(_TYPE{}.idField)>())
+    #define NO_CREATE_FROM_ID(_TYPE, idField) std::make_shared<_TYPE>()
+
     #define _User_FIELDS(M, ...) \
         M(name, __VA_ARGS__) M(created, __VA_ARGS__) M(githubId, __VA_ARGS__)
     #define User_FIELDS(M, ...) EXEC(_User_FIELDS(M, __VA_ARGS__))
     #define User_FOREIGN_FIELDS(M, ...)
+
+    SPECIALIZE_SERIALIZER_FOR(User, id, true)
+    SPECIALIZE_DESERIALIZER_FOR(User, id, DEFAULT_CREATE_FROM_ID)
 
     #define _NewsItem_FIELDS(M, ...) \
         M(title, __VA_ARGS__) M(author, __VA_ARGS__) M(body, __VA_ARGS__) \
@@ -411,7 +421,31 @@ namespace {
         M(author, id, __VA_ARGS__)
     #define NewsItem_FOREIGN_FIELDS(M, ...) EXEC(_NewsItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZERS_FOR(User, id)
-    SPECIALIZE_SERIALIZERS_FOR(NewsItem, id)
+    SPECIALIZE_SERIALIZER_FOR(NewsItem, id, true)
+    SPECIALIZE_DESERIALIZER_FOR(NewsItem, id, DEFAULT_CREATE_FROM_ID)
+
+    #define _Tag_FIELDS(M, ...) \
+        M(name, __VA_ARGS__)
+    #define Tag_FIELDS(M, ...) EXEC(_Tag_FIELDS(M, __VA_ARGS__))
+    #define Tag_FOREIGN_FIELDS(M, ...)
+
+    SPECIALIZE_SERIALIZER_FOR(Tag, id, true)
+    SPECIALIZE_DESERIALIZER_FOR(Tag, id, DEFAULT_CREATE_FROM_ID)
+
+    #define _GameVersion_FIELDS(M, ...) \
+        M(version, __VA_ARGS__) M(steamBuildId, __VA_ARGS__) M(visibility, __VA_ARGS__) 
+    #define GameVersion_FIELDS(M, ...) EXEC(_GameVersion_FIELDS(M, __VA_ARGS__))
+    #define GameVersion_FOREIGN_FIELDS(M, ...)
+
+    SPECIALIZE_SERIALIZER_FOR(GameVersion, id, true)
+    SPECIALIZE_DESERIALIZER_FOR(GameVersion, id, DEFAULT_CREATE_FROM_ID)
+
+    #define _Group_FIELDS(M, ...) \
+        M(name, __VA_ARGS__) M(permissions, __VA_ARGS__)
+    #define Group_FIELDS(M, ...) EXEC(_Group_FIELDS(M, __VA_ARGS__))
+    #define Group_FOREIGN_FIELDS(M, ...)
+
+    SPECIALIZE_SERIALIZER_FOR(Group, id, true)
+    SPECIALIZE_DESERIALIZER_FOR(Group, id, DEFAULT_CREATE_FROM_ID)
 
 }

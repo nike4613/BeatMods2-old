@@ -20,6 +20,7 @@
 #include "util/config.h"
 
 #include "db/engine.h"
+#include "db/string_traits.h"
 
 using namespace BeatMods;
 
@@ -110,6 +111,14 @@ int main()
         for (auto news : result2) {
             auto user = db::get_resolved(news->author); // notice that creation time was not requested by this last request! the same object was used from the previous one
             std::cout << news->title << " (" << news->id << ") by " << user->name << " (" << user->id << ") created " << pqxx::to_string(user->created) << std::endl;
+        }
+
+        auto result3 = db::lookup<db::GameVersion>(
+            transaction, 
+            {.id = true, .version = true, .steamBuildId = true, .visibility = true});
+
+        for (auto gv : result3) {
+            std::cout << gv->version << " (" << gv->id << ") " << gv->steamBuildId << " " << std::to_string(gv->visibility) << std::endl;
         }
     }
     catch (std::exception const& e)
