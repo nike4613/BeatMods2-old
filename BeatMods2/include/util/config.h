@@ -18,8 +18,8 @@ namespace BeatMods {
         uint16_t port = 7000;
         std::string bind_address = "[::]";
 
-        uint worker_limit_num = 3;
-        uint worker_limit_den = 4;
+        unsigned int worker_limit_num = 3;
+        unsigned int worker_limit_den = 4;
 
         bool use_ssl = false;
         struct SSL {
