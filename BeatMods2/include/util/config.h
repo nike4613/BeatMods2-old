@@ -16,7 +16,7 @@ namespace BeatMods {
         Config();
 
         uint16_t port = 7000;
-        std::string bind_address = "[::]";
+        std::string bind_address = "127.0.0.1";
 
         unsigned int worker_limit_num = 3;
         unsigned int worker_limit_den = 4;

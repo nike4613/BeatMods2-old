@@ -114,7 +114,7 @@ int main()
         }
 
         auto result3 = db::lookup<db::GameVersion>(
-            transaction, 
+            transaction,
             {.id = true, .version = true, .steamBuildId = true, .visibility = true});
 
         for (auto gv : result3) {
