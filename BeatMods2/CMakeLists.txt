@@ -9,9 +9,11 @@ add_executable (BeatMods2
 	"include/db/engine.h"		"src/db/engine.cpp"
 	"include/logging/Logging.h" "src/logging/Logging.cpp"
 	"include/util/json.h"
-	"include/util/config.h"		"src/util/config.cpp")
+	"include/util/config.h"		"src/util/config.cpp"
+	"src/util/http.cpp"         "include/util/http.h"
+	"src/auth/github.cpp"       "include/auth/github.h")
 target_include_directories(BeatMods2 PRIVATE "include")
-target_link_libraries (BeatMods2 restbed-static pqxx_static semver tz date_interface)
+target_link_libraries (BeatMods2 restbed-static pqxx_static semver tz date_interface libcurl)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD 17)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD_REQUIRED ON)
 
