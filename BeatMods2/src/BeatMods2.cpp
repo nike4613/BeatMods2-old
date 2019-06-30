@@ -91,7 +91,7 @@ int main()
 
         auto result = db::lookup<db::User>(
             transaction, 
-            {.id = true, .name = true, .created = true}, 
+            {.id = true, .name = true, .profile = true, .created = true},
             "",
             { .name = true }, 
             author.get(), 

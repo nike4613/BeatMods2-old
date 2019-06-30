@@ -406,7 +406,7 @@ namespace {
     #define NO_CREATE_FROM_ID(_TYPE, idField) std::make_shared<_TYPE>()
 
     #define _User_FIELDS(M, ...) \
-        M(name, __VA_ARGS__) M(created, __VA_ARGS__) M(githubId, __VA_ARGS__)
+        M(name, __VA_ARGS__) M(profile, __VA_ARGS__) M(created, __VA_ARGS__) M(githubId, __VA_ARGS__)
     #define User_FIELDS(M, ...) EXEC(_User_FIELDS(M, __VA_ARGS__))
     #define User_FOREIGN_FIELDS(M, ...)
 
