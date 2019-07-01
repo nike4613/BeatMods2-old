@@ -3,6 +3,10 @@ if (WIN32 AND NOT ${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC) # make restbed not do 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_WIN32_WINNT=0x0601 /W4 /wd4068 /wd4702")
 endif()
 
+if (APPLE)
+	set(OPENSSL_ROOT_DIR /usr/local/opt/openssl/)
+endif()
+
 set(DEPS_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/restbed/source")
 include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/restbed/source")
 add_subdirectory ("restbed")
@@ -27,3 +31,14 @@ set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS}" PARENT_SCOPE)
 set(USE_SYSTEM_TZ_DB ON)
 set(ENABLE_DATE_TESTING OFF)
 add_subdirectory("date")
+
+# curl stuff
+set(CURL_STATICLIB true)
+set(BUILD_CURL_EXE false)
+set(HTTP_ONLY true)
+set(LIBCURL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/curl)
+find_path(LIBCURL_INCLUDE_DIR curl/curl.h HINTS ${LIBCURL_DIR}/include)
+set(LIBS ${LIBS} libcurl)
+set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${LIBCURL_INCLUDE_DIR}")
+add_definitions(-DCURL_STATICLIB)
+add_subdirectory("curl")

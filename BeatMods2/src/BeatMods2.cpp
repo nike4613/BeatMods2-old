@@ -19,6 +19,8 @@
 
 #include "util/config.h"
 
+#include "util/http.h"
+
 #include "db/engine.h"
 #include "db/string_traits.h"
 
