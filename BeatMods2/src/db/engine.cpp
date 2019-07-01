@@ -85,6 +85,20 @@ std::string std::to_string(System e)
     return {};
 }
 
+std::string std::to_string(Approval e)
+{
+    switch (e)
+    {
+        ESSC(Approval, Approved);
+        ESSC(Approval, Declined);
+        ESSC(Approval, Pending);
+        ESSC(Approval, Inactive);
+    }
+
+    sassert(false);
+    return {};
+}
+
 std::string std::to_string(Visibility e)
 {
     switch (e)
@@ -178,17 +192,17 @@ std::vector<std::shared_ptr<T>> _make_request_instantiable<T>::lookup(
 }
 
 template<typename T>
-typename _make_request_instantiable<T>::IdType& _make_request_instantiable<T>::id(T& arg)
+typename _id_instantiator<T>::IdType& _id_instantiator<T>::id(T& arg)
 { return arg.id; }
 template<>
-typename _make_request_instantiable<Mod>::IdType& _make_request_instantiable<Mod>::id(Mod& arg)
+typename _id_instantiator<Mod>::IdType& _id_instantiator<Mod>::id(Mod& arg)
 { return arg.uuid; }
 
 template<typename T>
-typename _make_request_instantiable<T>::IdType const& _make_request_instantiable<T>::id(T const& arg)
+typename _id_instantiator<T>::IdType const& _id_instantiator<T>::id(T const& arg)
 { return arg.id; }
 template<>
-typename _make_request_instantiable<Mod>::IdType const& _make_request_instantiable<Mod>::id(Mod const& arg)
+typename _id_instantiator<Mod>::IdType const& _id_instantiator<Mod>::id(Mod const& arg)
 { return arg.uuid; }
 
 namespace {
@@ -263,11 +277,12 @@ namespace {
         }
     #define BASIC_DESERIALIZE_FIELD(name, responseFields, row, value, cid) \
         if (responseFields.name) \
-            value->name = row[cid++].as(value->name);
+            value->name = row[cid++].as<decltype(value->name)>();
 
-    #define JOIN_GET_RESPONSE(name, remoteId, type, responseFields, fields, values, conn, compareOp, whereCount) \
+    #define JOIN_GET_RESPONSE(name, remoteId, responseFields, fields, values, conn, compareOp, whereCount) \
         SerializeResponse name ## _response; \
         if (responseFields.name ## _resolve || fields.name ## _resolve) { \
+            using type = foreign_key_resolved_t<decltype(values->name)>; \
             type const* uvalues = nullptr; \
             if (values) { \
                 auto suv = std::get_if<std::shared_ptr<type>>(&values->name); \
@@ -325,7 +340,7 @@ namespace {
             EXEC(_TYPE##_FIELDS (COUNT_WHERE_CLAUSE, fields, whereCount)) \
             if (whereCount > 0) sassert(values != nullptr); \
             \
-            EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_GET_RESPONSE, User, responseFields, fields, values, conn, compareOp, whereCount)) \
+            EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_GET_RESPONSE, responseFields, fields, values, conn, compareOp, whereCount)) \
             \
             auto generateWhereClause = [=](std::basic_ostream<char>& stream, int& fieldNum) { \
                 auto op = to_pg_op(compareOp); \
@@ -447,5 +462,28 @@ namespace {
 
     SPECIALIZE_SERIALIZER_FOR(Group, id, true)
     SPECIALIZE_DESERIALIZER_FOR(Group, id, DEFAULT_CREATE_FROM_ID)
+
+    #define _Mod_FIELDS(M, ...) \
+        M(id, __VA_ARGS__) M(name, __VA_ARGS__) M(description, __VA_ARGS__) \
+        M(version, __VA_ARGS__) M(system, __VA_ARGS__) M(uploaded, __VA_ARGS__) \
+        M(approvalState, __VA_ARGS__) M(approved, __VA_ARGS__) M(required, __VA_ARGS__) \
+        M(dependsOn, __VA_ARGS__) M(conflictsWith, __VA_ARGS__)
+    #define Mod_FIELDS(M, ...) EXEC(_Mod_FIELDS(M, __VA_ARGS__))
+    #define _Mod_FOREIGN_FIELDS(M, ...) \
+        M(author, id, __VA_ARGS__) M(gameVersion, id, __VA_ARGS__)
+    #define Mod_FOREIGN_FIELDS(M, ...) EXEC(_Mod_FOREIGN_FIELDS(M, __VA_ARGS__))
+
+    SPECIALIZE_SERIALIZER_FOR(Mod, uuid, true)
+    SPECIALIZE_DESERIALIZER_FOR(Mod, uuid, DEFAULT_CREATE_FROM_ID)
+    
+    #define _Download_FIELDS(M, ...) \
+        M(type, __VA_ARGS__) M(cdnFile, __VA_ARGS__) M(hashes, __VA_ARGS__) 
+    #define Download_FIELDS(M, ...) EXEC(_Download_FIELDS(M, __VA_ARGS__))
+    #define _Download_FOREIGN_FIELDS(M, ...) \
+        M(mod, uuid, __VA_ARGS__)
+    #define Download_FOREIGN_FIELDS(M, ...) EXEC(_Download_FOREIGN_FIELDS(M, __VA_ARGS__))
+
+    SPECIALIZE_SERIALIZER_FOR(Download, mod, false)
+    SPECIALIZE_DESERIALIZER_FOR(Download, mod, NO_CREATE_FROM_ID)
 
 }

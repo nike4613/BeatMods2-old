@@ -2,6 +2,12 @@
 #define BEATMODS2_DB_STRING_TRAITS_H
 
 #include "db/engine.h"
+#include "util/json.h"
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+
+// TODO: split this into a source file with definitions here, but impls in the source file
+// like engine.h/engine.cpp
 
 namespace pqxx {
     template<> struct string_traits<BeatMods::db::TimeStamp>
@@ -83,7 +89,9 @@ namespace pqxx {
                 if (!first) str << ",";
                 first = false;
                 auto sval = pqxx::string_traits<T>::to_string(val);
-                // TODO: proper escapes for sanity
+                // TODO: just use connection_base::quote()
+                //       but that means figuring out how to get a connection
+                //         object in here....
                 str << '\'' << sval << '\'';
             }
             str << "}";
@@ -101,7 +109,7 @@ namespace pqxx {
         static void from_string(const char Str[], BeatMods::db::Version& Obj) 
         { 
             auto const len = std::strlen(Str);
-            char copy[len+1];
+            char copy[len+1]; // TODO: see if i actually need heap allocations because of stack size limitations
             std::memcpy(copy, Str, len);
             // copy now contains the string data from Str, and is on the stack
             // this lets me modify it, to have a series of c-strings to pass to 
@@ -164,9 +172,64 @@ namespace pqxx {
             auto const verDat = Obj.data();
             strm << pqxx::to_string(verDat.major) << ","
                  << pqxx::to_string(verDat.minor) << ","
-                 << pqxx::to_string(verDat.patch) << ","
-                 << pqxx::to_string(verDat.prerelease_ids) << ","
-                 << pqxx::to_string(verDat.build_ids) << ")";
+                 << pqxx::to_string(verDat.patch) << ",'"
+                 << pqxx::to_string(verDat.prerelease_ids) << "','" // TODO: fix these 2 to encode properly
+                 << pqxx::to_string(verDat.build_ids) << "')";
+            return strm.str();
+        }
+    };
+
+    template<> struct string_traits<BeatMods::db::ModRange>
+    {
+        static constexpr const char *name() noexcept { return "BeatMods::db::ModRange"; }
+        static constexpr bool has_null() noexcept { return false; }
+        static bool is_null(BeatMods::db::ModRange const&) { return false; }
+        [[noreturn]] static BeatMods::db::ModRange null()
+        { internal::throw_null_conversion(name()); }
+        static void from_string(const char Str[], BeatMods::db::ModRange& Obj) 
+        { 
+            auto const len = std::strlen(Str);
+            char copy[len+1]; // TODO: see if i actually need heap allocations because of stack size limitations
+            std::memcpy(copy, Str, len);
+            // copy now contains the string data from Str, and is on the stack
+            // this lets me modify it, to have a series of c-strings to pass to 
+            //   from_string
+
+            int str_idx = 0;
+            int str_front = -1;
+            for (size_t i = 0; i < len; ++i) {
+                switch (copy[i]) {
+                    case '(':
+                    case ')':
+                    case ',':
+                        copy[i] = 0;
+
+                        if (str_front >= 0) {
+                            if (copy[str_front+1] == '"' || copy[str_front+1] == '\'') {
+                                copy[++str_front] = 0;
+                                copy[i-1] = 0; // delete quotes from string
+                            }
+
+                            switch (str_idx++) {
+                                case 0: // id
+                                    std::strcpy(Obj.id, &copy[str_front+1]);
+                                    break;
+                                case 1: // verrange
+                                    std::strcpy(Obj.versionRange, &copy[str_front+1]);
+                                    break;
+                            }
+                        }
+
+                        str_front = i; // str_front will be the null before
+                        continue;
+                }
+            }
+        }
+        static std::string to_string(BeatMods::db::ModRange const& Obj) 
+        {
+            std::ostringstream strm{"("};
+            strm << "'" << pqxx::to_string(Obj.id) << "'," // TODO: probably quote these properly, perhaps don't need it bc of requirements of id and range
+                 << "'" << pqxx::to_string(Obj.versionRange) << "')";
             return strm.str();
         }
     };
@@ -187,6 +250,32 @@ namespace pqxx {
         static std::string to_string(version::Prerelease_identifier const& Obj) 
         {
             return pqxx::to_string(Obj.first);
+        }
+    };
+
+    template<> struct string_traits<BeatMods::db::JSON>
+    {
+        static constexpr const char *name() noexcept { return "BeatMods::db::JSON"; }
+        static constexpr bool has_null() noexcept { return false; }
+        static bool is_null(BeatMods::db::JSON const&) { return false; }
+        [[noreturn]] static BeatMods::db::JSON null()
+        { internal::throw_null_conversion(name()); }
+        static void from_string(const char Str[], BeatMods::db::JSON& Obj) 
+        { 
+            Obj.Clear();
+            const auto len = std::strlen(Str);
+            char stackCopy[len+1]; // TODO: see if i actually need heap allocations because of stack size limitations
+            std::memcpy(stackCopy, Str, len);
+
+            Obj.ParseInsitu(stackCopy);
+        }
+        static std::string to_string(BeatMods::db::JSON const& Obj) 
+        {
+            std::ostringstream out;
+            rapidjson::OStreamWrapper wrap {out};
+            rapidjson::Writer<rapidjson::OStreamWrapper> write {wrap};
+            Obj.Accept(write);
+            return out.str();
         }
     };
 
@@ -222,6 +311,43 @@ namespace pqxx {
             else Obj = BeatMods::db::Visibility::Public; // default 
         }
         static std::string to_string(BeatMods::db::Visibility Obj) 
+        { return std::to_string(Obj); }
+    };
+
+    template<> struct string_traits<BeatMods::db::DownloadType>
+    {
+        static constexpr const char *name() noexcept { return "BeatMods::db::DownloadType"; }
+        static constexpr bool has_null() noexcept { return false; }
+        static bool is_null(BeatMods::db::DownloadType) { return false; }
+        [[noreturn]] static BeatMods::db::DownloadType null()
+        { internal::throw_null_conversion(name()); }
+        static void from_string(const char Str[], BeatMods::db::DownloadType& Obj) 
+        { 
+            ENUM_FROM_STRING(BeatMods::db::DownloadType, Steam, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::DownloadType, Oculus, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::DownloadType, Universal, Str, Obj)
+            else Obj = BeatMods::db::DownloadType::Universal; // default 
+        }
+        static std::string to_string(BeatMods::db::DownloadType Obj) 
+        { return std::to_string(Obj); }
+    };
+
+    template<> struct string_traits<BeatMods::db::Approval>
+    {
+        static constexpr const char *name() noexcept { return "BeatMods::db::Approval"; }
+        static constexpr bool has_null() noexcept { return false; }
+        static bool is_null(BeatMods::db::Approval) { return false; }
+        [[noreturn]] static BeatMods::db::Approval null()
+        { internal::throw_null_conversion(name()); }
+        static void from_string(const char Str[], BeatMods::db::Approval& Obj) 
+        { 
+            ENUM_FROM_STRING(BeatMods::db::Approval, Approved, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::Approval, Declined, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::Approval, Pending, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::Approval, Inactive, Str, Obj)
+            else Obj = BeatMods::db::Approval::Inactive; // default 
+        }
+        static std::string to_string(BeatMods::db::Approval Obj) 
         { return std::to_string(Obj); }
     };
 

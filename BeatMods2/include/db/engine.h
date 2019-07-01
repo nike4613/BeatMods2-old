@@ -7,7 +7,6 @@
 #include <variant>
 #include <chrono>
 #include <vector>
-#include <rapidjson/document.h>
 #include <optional>
 #include <future>
 #include <date/date.h>
@@ -15,6 +14,7 @@
 #include <exception>
 #include <typeinfo>
 #include <cstring>
+#include "util/json.h"
 
 #ifndef EXEC
 #define EXEC(...) __VA_ARGS__
@@ -50,6 +50,20 @@ namespace BeatMods::db {
     auto get_unresolved(foreign_key<TR, TU>& ref) { return std::get<TU>(ref); }
     template<typename TR, typename TU>
     auto get_unresolved(foreign_key<TR, TU> const& ref) { return std::get<TU>(ref); }
+
+    template<typename T>
+    struct foreign_key_resolved {
+        using type = std::remove_reference_t<decltype(*std::variant_alternative_t<0, T>{})>;
+    };
+    template<typename T>
+    struct foreign_key_unresolved {
+        using type = std::variant_alternative_t<1, T>;
+    };
+
+    template<typename T>
+    using foreign_key_resolved_t = typename foreign_key_resolved<T>::type;
+    template<typename T>
+    using foreign_key_unresolved_t = typename foreign_key_unresolved<T>::type;
 
     enum class Approval {
         Approved, Declined, Pending, Inactive
@@ -124,7 +138,7 @@ namespace BeatMods::db {
 
     struct Mod {
         UUID uuid; // PKey (when creating, this is never used; instead DB default is)
-        char id[mod_id_length];
+        std::string id;
         std::string name;
         std::string description;
         foreign_key<User, UUID> author; // FKey Users.id
@@ -316,9 +330,6 @@ namespace BeatMods::db {
             T const* searchValues = nullptr,
             PgCompareOp compareOp = PgCompareOp::Equal,
             std::string_view additionalClauses = "");
-        using IdType = id_type_t<T>;
-        static IdType& id(T&);
-        static IdType const& id(T const&);
     };
 
     template<typename T>
@@ -332,22 +343,30 @@ namespace BeatMods::db {
     { return _make_request_instantiable<T>::lookup(transaction, returnFields, searchFields, searchValues, compareOp, additionalClauses); }
 
     template<typename T>
-    auto& id(T& arg) { return _make_request_instantiable<T>::id(arg); }
+    struct _id_instantiator {
+        using IdType = id_type_t<T>;
+        static IdType& id(T&);
+        static IdType const& id(T const&);
+    };
+
     template<typename T>
-    auto const& id(T const& arg) { return _make_request_instantiable<T>::id(arg); }
+    auto& id(T& arg) { return _id_instantiator<T>::id(arg); }
+    template<typename T>
+    auto const& id(T const& arg) { return _id_instantiator<T>::id(arg); }
 
     template struct _make_request_instantiable<User>; // so that i don't have to repeat the signature 5 billion times
     template struct _make_request_instantiable<NewsItem>;
     template struct _make_request_instantiable<Tag>;
     template struct _make_request_instantiable<Group>;
     template struct _make_request_instantiable<GameVersion>;
-    /*
-    template struct _make_request_instantiable<Mod>;
     template struct _make_request_instantiable<Download>;
-    */
-    /*template struct _make_request_instantiable<GameVersion_VisibleGroups_JoinItem>;
+    template struct _make_request_instantiable<Mod>; 
+
+    /*
+    template struct _make_request_instantiable<GameVersion_VisibleGroups_JoinItem>;
     template struct _make_request_instantiable<Mods_Tags_JoinItem>;
-    template struct _make_request_instantiable<Users_Groups_JoinItem>;*/ // TODO: re-enable all of these
+    template struct _make_request_instantiable<Users_Groups_JoinItem>;
+    */ // TODO: re-enable all of these
 }
 
 namespace std { 
@@ -355,6 +374,7 @@ namespace std {
     std::string to_string(BeatMods::db::DownloadType);
     std::string to_string(BeatMods::db::Permission);
     std::string to_string(BeatMods::db::System);
+    std::string to_string(BeatMods::db::Approval);
     std::string to_string(BeatMods::db::Visibility);
 }
 

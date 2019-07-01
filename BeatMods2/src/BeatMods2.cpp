@@ -120,6 +120,29 @@ int main()
         for (auto gv : result3) {
             std::cout << gv->version << " (" << gv->id << ") " << gv->steamBuildId << " " << std::to_string(gv->visibility) << std::endl;
         }
+
+        auto result4 = db::lookup<db::Mod>(
+            transaction,
+            {
+                .uuid = true, .id = true, .name = true, 
+                .author = true, .author_resolve = true,
+                .version = true,
+                .gameVersion = true, .gameVersion_resolve = true,
+                .system = true, .uploaded = true, .required = true,
+                .dependsOn = true, .conflictsWith = true,
+
+                .author_request = {.id = true, .name = true, .profile = true},
+                .gameVersion_request = {.id = true, .version = true}
+            });
+
+        for (auto mod : result4) {
+            auto author = db::get_resolved(mod->author);
+            auto gv = db::get_resolved(mod->gameVersion);
+            std::cout << mod->name << " (" << mod->id << ") (" << mod->uuid << ") " << mod->version 
+                << " for " << gv->version << " (" << gv->id << ")" 
+                << " by " << author->name << " (" << author->id << ")" 
+                << std::endl;
+        }
     }
     catch (std::exception const& e)
     {    
