@@ -285,7 +285,7 @@ namespace {
             using type = foreign_key_resolved_t<decltype(values->name)>; \
             type const* uvalues = nullptr; \
             if (values) { \
-                auto suv = std::get_if<std::shared_ptr<type>>(&values->name); \
+                auto suv = get_resolved_if(&values->name); \
                 if (suv) uvalues = suv->get(); \
             } \
             if (fields.name ## _resolve) ++whereCount;\
@@ -312,8 +312,8 @@ namespace {
             fieldBefore = true; \
             name ## _response.selectCols(stream); \
         }
-    #define JOIN_FROM_TABLE(name, remoteId, stream, responseFields) \
-        if (responseFields.name ## _resolve) \
+    #define JOIN_FROM_TABLE(name, remoteId, stream, responseFields, inpFields) \
+        if (responseFields.name ## _resolve || inpFields.name ## _resolve) \
             stream << " LEFT JOIN " << decltype(responseFields.name ## _request)::_type::table \
                 << " ON " << std::remove_reference_t<decltype(responseFields)>::_type::table << \
                 ".\"" #name "\" = " << decltype(responseFields.name ## _request)::_type::table << \
@@ -336,7 +336,8 @@ namespace {
             std::string_view additionalClauses) \
         { \
             auto whereCount = 0; \
-            if (fields.idField) ++whereCount; \
+            if constexpr (auto_ID) \
+                if (fields.idField) ++whereCount; \
             EXEC(_TYPE##_FIELDS (COUNT_WHERE_CLAUSE, fields, whereCount)) \
             if (whereCount > 0) sassert(values != nullptr); \
             \
@@ -360,7 +361,8 @@ namespace {
                 std::vector<std::string> vector; /* initialize to the max number of known fields */ \
                 vector.reserve(whereCount); /* initialize to the number of fields */ \
                 \
-                if (fields.idField) vector.push_back(pqxx::to_string(values->idField)); \
+                if constexpr (auto_ID) \
+                    if (fields.idField) vector.push_back(pqxx::to_string(values->idField)); \
                 EXEC(_TYPE##_FIELDS (WHERE_VALUES_FIELD, values, fields, vector)) \
                 EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_WHERE_VALUES, vector, fields)); \
                 \
@@ -385,7 +387,7 @@ namespace {
                 generateSelectFields(sql); \
                 sql << " FROM " << _TYPE::table; \
                 \
-                EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_FROM_TABLE, sql, responseFields)) \
+                EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_FROM_TABLE, sql, responseFields, fields)) \
                 \
                 if (whereCount > 0) { \
                     sql << " WHERE "; \
@@ -485,5 +487,29 @@ namespace {
 
     SPECIALIZE_SERIALIZER_FOR(Download, mod, false)
     SPECIALIZE_DESERIALIZER_FOR(Download, mod, NO_CREATE_FROM_ID)
+
+    #define GameVersion_VisibleGroups_JoinItem_FIELDS(M, ...)
+    #define _GameVersion_VisibleGroups_JoinItem_FOREIGN_FIELDS(M, ...) \
+        M(gameVersion, id, __VA_ARGS__) M(group, id, __VA_ARGS__)
+    #define GameVersion_VisibleGroups_JoinItem_FOREIGN_FIELDS(M, ...) EXEC(_GameVersion_VisibleGroups_JoinItem_FOREIGN_FIELDS(M, __VA_ARGS__))
+
+    SPECIALIZE_SERIALIZER_FOR(GameVersion_VisibleGroups_JoinItem, group, false) // ID field here must be a valid field, but not necessarily an id field if the 3rd is false
+    SPECIALIZE_DESERIALIZER_FOR(GameVersion_VisibleGroups_JoinItem, , NO_CREATE_FROM_ID)
+
+    #define Mods_Tags_JoinItem_FIELDS(M, ...)
+    #define _Mods_Tags_JoinItem_FOREIGN_FIELDS(M, ...) \
+        M(mod, uuid, __VA_ARGS__) M(tag, id, __VA_ARGS__)
+    #define Mods_Tags_JoinItem_FOREIGN_FIELDS(M, ...) EXEC(_Mods_Tags_JoinItem_FOREIGN_FIELDS(M, __VA_ARGS__))
+
+    SPECIALIZE_SERIALIZER_FOR(Mods_Tags_JoinItem, mod, false) // ID field here must be a valid field, but not necessarily an id field if the 3rd is false
+    SPECIALIZE_DESERIALIZER_FOR(Mods_Tags_JoinItem, , NO_CREATE_FROM_ID)
+
+    #define Users_Groups_JoinItem_FIELDS(M, ...)
+    #define _Users_Groups_JoinItem_FOREIGN_FIELDS(M, ...) \
+        M(user, id, __VA_ARGS__) M(group, id, __VA_ARGS__)
+    #define Users_Groups_JoinItem_FOREIGN_FIELDS(M, ...) EXEC(_Users_Groups_JoinItem_FOREIGN_FIELDS(M, __VA_ARGS__))
+
+    SPECIALIZE_SERIALIZER_FOR(Users_Groups_JoinItem, user, false) // ID field here must be a valid field, but not necessarily an id field if the 3rd is false
+    SPECIALIZE_DESERIALIZER_FOR(Users_Groups_JoinItem, , NO_CREATE_FROM_ID)
 
 }

@@ -42,14 +42,30 @@ namespace BeatMods::db {
     template<typename TResolved, typename TUnresolved>
     using foreign_key = std::variant<std::shared_ptr<TResolved>, TUnresolved>;
 
+    // all of these throw if the variant is not the right type
     template<typename TR, typename TU>
-    auto get_resolved(foreign_key<TR, TU>& ref) { return std::get<std::shared_ptr<TR>>(ref); }
+    [[nodiscard]] constexpr auto get_resolved(foreign_key<TR, TU>& ref) { return std::get<std::shared_ptr<TR>>(ref); }
     template<typename TR, typename TU>
-    auto get_resolved(foreign_key<TR, TU> const& ref) { return std::get<std::shared_ptr<TR>>(ref); }
+    [[nodiscard]] constexpr auto get_resolved(foreign_key<TR, TU> const& ref) { return std::get<std::shared_ptr<TR>>(ref); }
     template<typename TR, typename TU>
-    auto get_unresolved(foreign_key<TR, TU>& ref) { return std::get<TU>(ref); }
+    [[nodiscard]] constexpr auto get_unresolved(foreign_key<TR, TU>& ref) { return std::get<TU>(ref); }
     template<typename TR, typename TU>
-    auto get_unresolved(foreign_key<TR, TU> const& ref) { return std::get<TU>(ref); }
+    [[nodiscard]] constexpr auto get_unresolved(foreign_key<TR, TU> const& ref) { return std::get<TU>(ref); }
+
+    // these, however, do not    
+    template<typename TR, typename TU>
+    [[nodiscard]] constexpr auto get_resolved_if(foreign_key<TR, TU> const* ref) noexcept { return std::get_if<std::shared_ptr<TR>>(ref); }
+    template<typename TR, typename TU>
+    [[nodiscard]] constexpr auto get_resolved_if(foreign_key<TR, TU>* ref) noexcept { return std::get_if<std::shared_ptr<TR>>(ref); }
+    template<typename TR, typename TU>
+    [[nodiscard]] constexpr auto get_unresolved_if(foreign_key<TR, TU> const* ref) noexcept { return std::get_if<TU>(ref); }
+    template<typename TR, typename TU>
+    [[nodiscard]] constexpr auto get_unresolved_if(foreign_key<TR, TU>* ref) noexcept { return std::get_if<TU>(ref); }
+    
+    template<typename TR, typename TU>
+    [[nodiscard]] constexpr auto is_resolved(foreign_key<TR, TU> const& ref) noexcept { return std::holds_alternative<std::shared_ptr<TR>>(ref); }
+    template<typename TR, typename TU>
+    [[nodiscard]] constexpr auto is_unresolved(foreign_key<TR, TU> const& ref) noexcept { return std::holds_alternative<TU>(ref); }
 
     template<typename T>
     struct foreign_key_resolved {
@@ -102,8 +118,6 @@ namespace BeatMods::db {
     enum class Visibility {
         Public, Groups
     };
-
-    // TODO: add overloads of pqxx::string_traits<>::to_string and pqxx::string_traits<>::from_string for the above types
 
     // Tables //
 
@@ -360,13 +374,10 @@ namespace BeatMods::db {
     template struct _make_request_instantiable<Group>;
     template struct _make_request_instantiable<GameVersion>;
     template struct _make_request_instantiable<Download>;
-    template struct _make_request_instantiable<Mod>; 
-
-    /*
+    template struct _make_request_instantiable<Mod>;
     template struct _make_request_instantiable<GameVersion_VisibleGroups_JoinItem>;
     template struct _make_request_instantiable<Mods_Tags_JoinItem>;
     template struct _make_request_instantiable<Users_Groups_JoinItem>;
-    */ // TODO: re-enable all of these
 }
 
 namespace std { 

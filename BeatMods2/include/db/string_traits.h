@@ -73,9 +73,8 @@ namespace pqxx {
                     Obj.push_back(pqxx::string_traits<T>::null());
                     break;
                 case pqxx::array_parser::juncture::string_value:
-                    T val;
+                    T& val = Obj.emplace_back();
                     pqxx::string_traits<T>::from_string(value.second.c_str(), val);
-                    Obj.push_back(val);
                     break;
                 }
                 value = parser.get_next();

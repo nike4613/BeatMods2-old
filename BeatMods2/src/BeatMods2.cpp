@@ -145,6 +145,47 @@ int main()
                 << " by " << author->name << " (" << author->id << ")" 
                 << std::endl;
         }
+
+        auto result5 = db::lookup<db::GameVersion_VisibleGroups_JoinItem>(
+            transaction,
+            {
+                .gameVersion = true, .gameVersion_resolve = true,
+                .group = true, .group_resolve = true,
+
+                .gameVersion_request = {.id = true, .version = true, .visibility = true},
+                .group_request = {.id = true, .name = true, .permissions = true}
+            });
+
+        for (auto join : result5) {
+            auto gv = db::get_resolved(join->gameVersion);
+            auto g = db::get_resolved(join->group);
+            std::cout << gv->version << " vis " << std::to_string(gv->visibility) << " (" << gv->id << ") "
+                << "allows group " << g->name << " (having perms ";
+            for (auto perm : g->permissions)
+                std::cout << std::to_string(perm) << ", ";
+            std::cout << ")" << std::endl;
+        }
+
+        // a more typical use of the last one
+        db::GameVersion_VisibleGroups_JoinItem searchItem;
+        searchItem.gameVersion = result3[0];
+        auto result6 = db::lookup<db::GameVersion_VisibleGroups_JoinItem>(
+            transaction,
+            {
+                .group = true, .group_resolve = true,
+                .group_request = {.id = true, .name = true}
+            }, "",
+            {
+                .gameVersion = true, .gameVersion_resolve = true,
+                .gameVersion_request = {.id = true}
+            }, &searchItem);
+        
+        for (auto join : result5) {
+            auto gv = db::get_resolved(join->gameVersion);
+            auto g = db::get_resolved(join->group);
+            std::cout << gv->version << " vis " << std::to_string(gv->visibility) << " (" << gv->id << ") "
+                << "allows group " << g->name << std::endl;
+        }
     }
     catch (std::exception const& e)
     {    
