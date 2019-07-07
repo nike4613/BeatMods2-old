@@ -1,6 +1,8 @@
 #ifndef BEATMODS2_UTIL_MACRO_H
 #define BEATMODS2_UTIL_MACRO_H
 
+#include <stdexcept>
+
 #define EXEC(...) __VA_ARGS__
 
 #define _STR(s) #s
