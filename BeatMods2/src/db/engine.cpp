@@ -131,6 +131,7 @@ namespace {
         } statementType;
         std::string nameOrQuery; // becomes join target table if a join part
         std::vector<std::string> queryParams;
+
         std::function<void(std::basic_ostream<char>&)> selectCols;
         std::function<void(std::basic_ostream<char>&, int&)> wherePart;
     };
@@ -158,7 +159,7 @@ namespace {
 }
 
 template<typename T>
-std::vector<std::shared_ptr<T>> _make_request_instantiable<T>::lookup(
+std::vector<std::shared_ptr<T>> _request_instantiator<T>::lookup(
     pqxx::transaction_base& transaction,
     typename T::request const& returnFields, 
     typename T::request const& searchFields,
@@ -201,11 +202,17 @@ typename _id_instantiator<Mod>::IdType& _id_instantiator<Mod>::id(Mod& arg)
 { return arg.uuid; }
 
 template<typename T>
-typename _id_instantiator<T>::IdType const& _id_instantiator<T>::id(T const& arg)
+typename _id_instantiator<T>::IdType _id_instantiator<T>::id(T const& arg)
 { return arg.id; }
 template<>
-typename _id_instantiator<Mod>::IdType const& _id_instantiator<Mod>::id(Mod const& arg)
+typename _id_instantiator<Mod>::IdType _id_instantiator<Mod>::id(Mod const& arg)
 { return arg.uuid; }
+
+template<typename T>
+typename _id_instantiator<T>::IdType _id_instantiator<T>::fkey(foreign_key<T, id_type_t<T>> const& arg) { 
+    if (is_resolved(arg)) return id(*get_resolved(arg));
+    else                  return get_unresolved(arg);
+}
 
 namespace {
 

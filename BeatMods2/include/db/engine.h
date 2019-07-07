@@ -326,7 +326,7 @@ namespace BeatMods::db {
     using id_type_t = typename id_type<T>::type;
 
     template<typename T>
-    struct _make_request_instantiable {
+    struct _request_instantiator {
         static std::vector<std::shared_ptr<T>> lookup(
             pqxx::transaction_base& transaction,
             typename T::request const& returnFields, 
@@ -344,30 +344,40 @@ namespace BeatMods::db {
         typename T::request const& searchFields = {}, 
         T const* searchValues = nullptr,
         PgCompareOp compareOp = PgCompareOp::Equal)
-    { return _make_request_instantiable<T>::lookup(transaction, returnFields, searchFields, searchValues, compareOp, additionalClauses); }
+    { return _request_instantiator<T>::lookup(transaction, returnFields, searchFields, searchValues, compareOp, additionalClauses); }
+    
+    template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times
+    template struct _request_instantiator<NewsItem>;
+    template struct _request_instantiator<Tag>;
+    template struct _request_instantiator<Group>;
+    template struct _request_instantiator<GameVersion>;
+    template struct _request_instantiator<Download>;
+    template struct _request_instantiator<Mod>;
+    template struct _request_instantiator<GameVersion_VisibleGroups_JoinItem>;
+    template struct _request_instantiator<Mods_Tags_JoinItem>;
+    template struct _request_instantiator<Users_Groups_JoinItem>;
 
     template<typename T>
     struct _id_instantiator {
         using IdType = id_type_t<T>;
         static IdType& id(T&);
-        static IdType const& id(T const&);
+        static IdType id(T const&);
+        static IdType fkey(foreign_key<T, IdType> const&);
     };
 
     template<typename T>
     auto& id(T& arg) { return _id_instantiator<T>::id(arg); }
     template<typename T>
-    auto const& id(T const& arg) { return _id_instantiator<T>::id(arg); }
+    auto id(T const& arg) { return _id_instantiator<T>::id(arg); }
+    template<typename T>
+    auto foreign_key_id(foreign_key<T, id_type_t<T>> const& arg) { return _id_instantiator<T>::fkey(arg); }
 
-    template struct _make_request_instantiable<User>; // so that i don't have to repeat the signature 5 billion times
-    template struct _make_request_instantiable<NewsItem>;
-    template struct _make_request_instantiable<Tag>;
-    template struct _make_request_instantiable<Group>;
-    template struct _make_request_instantiable<GameVersion>;
-    template struct _make_request_instantiable<Download>;
-    template struct _make_request_instantiable<Mod>;
-    template struct _make_request_instantiable<GameVersion_VisibleGroups_JoinItem>;
-    template struct _make_request_instantiable<Mods_Tags_JoinItem>;
-    template struct _make_request_instantiable<Users_Groups_JoinItem>;
+    template struct _id_instantiator<User>;
+    template struct _id_instantiator<NewsItem>;
+    template struct _id_instantiator<Tag>;
+    template struct _id_instantiator<Group>;
+    template struct _id_instantiator<GameVersion>;
+    template struct _id_instantiator<Mod>;
 }
 
 namespace std { 

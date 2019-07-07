@@ -39,11 +39,7 @@ namespace pqxx {
         static void from_string(const char Str[], BeatMods::db::foreign_key<TR, TU>& Obj) 
         { TU val; pqxx::string_traits<TU>::from_string(Str, val); Obj = val; }
         static std::string to_string(BeatMods::db::foreign_key<TR, TU> const& Obj) 
-        {
-            auto tres = std::get_if<std::shared_ptr<TR>>(&Obj);
-            if (tres)   return pqxx::to_string(BeatMods::db::id(**tres));
-            else        return pqxx::to_string(std::get<TU>(Obj));
-        }
+        { return pqxx::to_string(BeatMods::db::foreign_key_id(Obj)); }
     };
 
     template<typename T> 
