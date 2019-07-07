@@ -119,7 +119,7 @@ namespace pqxx {
                 unsigned int minor; 
                 unsigned int patch; 
                 std::string prerelease;
-		        std::string build;
+                std::string build;
             } vers;
 
             int str_idx = 0;

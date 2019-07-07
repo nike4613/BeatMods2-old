@@ -205,9 +205,9 @@ namespace BeatMods::semver {
 
         template<typename OStream>
         friend OStream& operator<<(OStream& os, Version const& v) {
-            os << v.major() << "."
-            << v.minor() << "."
-            << v.patch();
+            os  << v.major() << "."
+                << v.minor() << "."
+                << v.patch();
             if (v.pre_len > 0)
                 os << "-" << v.prerelease_v();
             if (v.build_len > 0)
