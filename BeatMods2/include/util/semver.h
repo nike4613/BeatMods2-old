@@ -141,7 +141,7 @@ namespace BeatMods::semver {
         [[nodiscard]] constexpr int compare(Version const& b) const noexcept {
             constexpr int const LESS = -1;
             constexpr int const GREATER = 1;
-            constexpr int const EQUAL = 1;
+            constexpr int const EQUAL = 0;
 
             if (major() < b.major() ||
                 minor() < b.minor() ||
