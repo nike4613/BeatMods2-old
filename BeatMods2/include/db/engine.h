@@ -267,7 +267,7 @@ namespace BeatMods::db {
         foreign_key<User, UUID>        user;  // PKey, FKey Users.id
         foreign_key<Group, BigInteger> group; // PKey, FKey Groups.id
         
-        static constexpr char const* table = "\"mod-repo\".\" Users_Groups_Joiner\"";
+        static constexpr char const* table = "\"mod-repo\".\"Users_Groups_Joiner\"";
         struct request {
             using _type = Users_Groups_JoinItem;
             bool user:1; bool user_resolve:1;
@@ -277,6 +277,40 @@ namespace BeatMods::db {
             Group::request group_request;
         };
     };
+
+    namespace state {
+        enum class LogLevel {
+            Debug, Warning, Error, Fatal, Info, Security
+        };
+
+        struct LogItem {
+            BigInteger id;
+            TimeStamp time;
+            std::string message;
+            LogLevel level;
+
+            static constexpr char const* table = "\"server-state\".\"Log\"";
+            struct request {
+                using _type = LogItem;
+                bool id:1; bool time:1; 
+                bool message:1; bool level:1;
+            };
+        };
+
+        struct Token {
+            foreign_key<User, UUID> user;
+            std::string token;
+            
+            static constexpr char const* table = "\"server-state\".\"Tokens\"";
+            struct request {
+                using _type = LogItem;
+                bool user:1; bool user_resolve:1;
+                bool token:1;
+                
+                User::request user_request;
+            };
+        };
+    }
 
     // Accessors // 
 
@@ -334,6 +368,9 @@ namespace BeatMods::db {
             T const* searchValues = nullptr,
             PgCompareOp compareOp = PgCompareOp::Equal,
             std::string_view additionalClauses = "");
+        static size_t insert(
+            pqxx::transaction_base& transaction,
+            T const* value);
     };
 
     template<typename T>
@@ -356,6 +393,8 @@ namespace BeatMods::db {
     template struct _request_instantiator<GameVersion_VisibleGroups_JoinItem>;
     template struct _request_instantiator<Mods_Tags_JoinItem>;
     template struct _request_instantiator<Users_Groups_JoinItem>;
+    template struct _request_instantiator<state::LogItem>;
+    template struct _request_instantiator<state::Token>;
 
     template<typename T>
     struct _id_instantiator {
@@ -378,6 +417,7 @@ namespace BeatMods::db {
     template struct _id_instantiator<Group>;
     template struct _id_instantiator<GameVersion>;
     template struct _id_instantiator<Mod>;
+    template struct _id_instantiator<state::LogItem>;
 }
 
 namespace std { 
@@ -387,6 +427,7 @@ namespace std {
     std::string to_string(BeatMods::db::System);
     std::string to_string(BeatMods::db::Approval);
     std::string to_string(BeatMods::db::Visibility);
+    std::string to_string(BeatMods::db::state::LogLevel);
 }
 
 #endif

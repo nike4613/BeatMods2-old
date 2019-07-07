@@ -319,6 +319,27 @@ namespace pqxx {
         { return std::to_string(Obj); }
     };
 
+    template<> struct string_traits<BeatMods::db::state::LogLevel>
+    {
+        static constexpr const char *name() noexcept { return "BeatMods::db::state::LogLevel"; }
+        static constexpr bool has_null() noexcept { return false; }
+        static bool is_null(BeatMods::db::state::LogLevel) { return false; }
+        [[noreturn]] static BeatMods::db::state::LogLevel null()
+        { internal::throw_null_conversion(name()); }
+        static void from_string(const char Str[], BeatMods::db::state::LogLevel& Obj) 
+        { 
+            ENUM_FROM_STRING(BeatMods::db::state::LogLevel, Debug, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::state::LogLevel, Warning, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::state::LogLevel, Error, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::state::LogLevel, Fatal, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::state::LogLevel, Info, Str, Obj)
+            else ENUM_FROM_STRING(BeatMods::db::state::LogLevel, Security, Str, Obj)
+            else Obj = BeatMods::db::state::LogLevel::Error; // default 
+        }
+        static std::string to_string(BeatMods::db::state::LogLevel Obj) 
+        { return std::to_string(Obj); }
+    };
+
     template<> struct string_traits<BeatMods::db::Permission>
     {
         static constexpr const char *name() noexcept { return "BeatMods::db::Permission"; }

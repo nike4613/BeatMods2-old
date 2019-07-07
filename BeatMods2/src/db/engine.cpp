@@ -12,8 +12,7 @@
 
 using namespace BeatMods::db;
 
-std::string BeatMods::db::to_pg_op(PgCompareOp op) 
-{
+std::string BeatMods::db::to_pg_op(PgCompareOp op) {
     if (op == PgCompareOp::Less) return "<";
     if (op == PgCompareOp::Greater) return ">";
     if (op == PgCompareOp::Equal) return "=";
@@ -47,10 +46,8 @@ std::string BeatMods::db::to_pg_op(PgCompareOp op)
     return "IS " + part;
 }
 
-std::string std::to_string(CompareOp e)
-{
-    switch (e)
-    {
+std::string std::to_string(CompareOp e) {
+    switch (e) {
         ESSC(CompareOp, Greater);
         ESSC(CompareOp, GreaterEqual);
         ESSC(CompareOp, Equal);
@@ -62,10 +59,8 @@ std::string std::to_string(CompareOp e)
     return {};
 }
 
-std::string std::to_string(DownloadType e)
-{
-    switch (e)
-    {
+std::string std::to_string(DownloadType e) {
+    switch (e) {
         ESSC(DownloadType, Steam);
         ESSC(DownloadType, Oculus);
         ESSC(DownloadType, Universal);
@@ -75,10 +70,8 @@ std::string std::to_string(DownloadType e)
     return {};
 }
 
-std::string std::to_string(System e)
-{
-    switch (e)
-    {
+std::string std::to_string(System e) {
+    switch (e) {
         ESSC(System, PC);
         ESSC(System, Quest);
     }
@@ -87,10 +80,8 @@ std::string std::to_string(System e)
     return {};
 }
 
-std::string std::to_string(Approval e)
-{
-    switch (e)
-    {
+std::string std::to_string(Approval e) {
+    switch (e) {
         ESSC(Approval, Approved);
         ESSC(Approval, Declined);
         ESSC(Approval, Pending);
@@ -101,10 +92,8 @@ std::string std::to_string(Approval e)
     return {};
 }
 
-std::string std::to_string(Visibility e)
-{
-    switch (e)
-    {
+std::string std::to_string(Visibility e) {
+    switch (e) {
         ESSC(Visibility, Public);
         ESSC(Visibility, Groups);
     }
@@ -113,8 +102,21 @@ std::string std::to_string(Visibility e)
     return {};
 }
 
-std::string std::to_string(Permission e)
-{
+std::string std::to_string(state::LogLevel e) {
+    switch (e) {
+        ESSC(state::LogLevel, Debug);
+        ESSC(state::LogLevel, Warning);
+        ESSC(state::LogLevel, Error);
+        ESSC(state::LogLevel, Fatal);
+        ESSC(state::LogLevel, Info);
+        ESSC(state::LogLevel, Security);
+    }
+
+    sassert(false);
+    return {};
+}
+
+std::string std::to_string(Permission e) {
     #define M(name) EXEC(ESSC(Permission, name))
     switch (e) { PERMISSIONS(M); }
     #undef M
@@ -520,5 +522,24 @@ namespace {
 
     SPECIALIZE_SERIALIZER_FOR(Users_Groups_JoinItem, user, false) // ID field here must be a valid field, but not necessarily an id field if the 3rd is false
     SPECIALIZE_DESERIALIZER_FOR(Users_Groups_JoinItem, , NO_CREATE_FROM_ID)
+
+    using namespace state;
+    #define _LogItem_FIELDS(M, ...) \
+        M(time, __VA_ARGS__) M(message, __VA_ARGS__) M(level, __VA_ARGS__)
+    #define LogItem_FIELDS(M, ...) EXEC(_LogItem_FIELDS(M, __VA_ARGS__))
+    #define LogItem_FOREIGN_FIELDS(M, ...)
+
+    SPECIALIZE_SERIALIZER_FOR(LogItem, id, true)
+    SPECIALIZE_DESERIALIZER_FOR(LogItem, id, DEFAULT_CREATE_FROM_ID)
+
+    #define _Token_FIELDS(M, ...) \
+        M(token, __VA_ARGS__) 
+    #define Token_FIELDS(M, ...) EXEC(_Token_FIELDS(M, __VA_ARGS__))
+    #define _Token_FOREIGN_FIELDS(M, ...) \
+        M(user, id, __VA_ARGS__)
+    #define Token_FOREIGN_FIELDS(M, ...) EXEC(_Token_FOREIGN_FIELDS(M, __VA_ARGS__))
+
+    SPECIALIZE_SERIALIZER_FOR(Token, token, false)
+    SPECIALIZE_DESERIALIZER_FOR(Token, token, NO_CREATE_FROM_ID)
 
 }
