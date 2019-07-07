@@ -1,5 +1,7 @@
 #include "db/engine.h"
 #include "db/string_traits.h"
+#include "util/algorithm.h"
+#include "util/macro.h"
 #include <map>
 #include <iomanip>
 #include <functional>

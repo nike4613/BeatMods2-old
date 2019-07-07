@@ -198,8 +198,8 @@ CREATE TYPE "mod-repo"."Version" AS (
 	major integer,
 	minor integer,
 	patch integer,
-	prerelease_ids text[],
-	build_ids text[]
+	prerelease text,
+	build text
 );
 
 

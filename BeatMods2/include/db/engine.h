@@ -3,7 +3,6 @@
 
 #include <pqxx/pqxx>
 #include <cstddef>
-#include <semver200.h>
 #include <variant>
 #include <chrono>
 #include <vector>
@@ -15,17 +14,8 @@
 #include <typeinfo>
 #include <cstring>
 #include "util/json.h"
-
-#ifndef EXEC
-#define EXEC(...) __VA_ARGS__
-#endif
-
-#ifndef STR
-#define _STR(s) #s
-#define STR(s) _STR(s)
-#endif
-
-#define sassert(...) { if (!(__VA_ARGS__)) throw std::runtime_error("Assertion failed: " STR((__VA_ARGS__))); }
+#include "util/semver.h"
+#include "util/macro.h"
 
 namespace BeatMods::db {
 
@@ -35,7 +25,7 @@ namespace BeatMods::db {
     using Integer = int32_t;
     using BigInteger = int64_t;
 
-    using Version = version::Semver200_version;
+    using Version = BeatMods::semver::Version;
     using TimeStamp = std::chrono::system_clock::time_point;
     using JSON = rapidjson::Document;
 

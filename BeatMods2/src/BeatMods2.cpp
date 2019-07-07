@@ -9,7 +9,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <pqxx/pqxx>
-#include <semver200.h>
 
 #include "util/json.h"
 #include <rapidjson/prettywriter.h>
@@ -20,6 +19,9 @@
 #include "util/config.h"
 
 #include "util/http.h"
+
+#include "util/semver.h"
+#include "util/algorithm.h"
 
 #include "db/engine.h"
 #include "db/string_traits.h"
@@ -144,6 +146,17 @@ int main()
                 << " for " << gv->version << " (" << gv->id << ")" 
                 << " by " << author->name << " (" << author->id << ")" 
                 << std::endl;
+            
+            semver::Version ver {"1.2.4-pre.1+build17"};
+
+            [[maybe_unused]] constexpr semver::Version ver2 {"1.2.4-pre.1+build.17"};
+
+            for (auto conflict : mod->conflictsWith) {
+                semver::Range range {conflict.versionRange};
+
+                std::cout << range.in_range(ver) << std::endl;
+                algorithm::debug_use(range);
+            }
         }
 
         auto result5 = db::lookup<db::GameVersion_VisibleGroups_JoinItem>(

@@ -70,7 +70,8 @@
 			"connection": "cpp",
 			"hash_map": "cpp",
 			"unordered_set": "cpp",
-			"charconv": "cpp"
+			"charconv": "cpp",
+			"forward_list": "cpp"
 		}
 	}
 }

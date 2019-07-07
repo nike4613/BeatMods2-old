@@ -115,65 +115,57 @@ namespace pqxx {
             //   from_string
 
             struct {
-                int major; 
-                int minor; 
-                int patch; 
-                version::Prerelease_identifiers prerelease_ids;
-		        version::Build_identifiers build_ids;
+                unsigned int major; 
+                unsigned int minor; 
+                unsigned int patch; 
+                std::string prerelease;
+		        std::string build;
             } vers;
 
             int str_idx = 0;
-            int brace_count = 0;
             int str_front = -1;
             for (size_t i = 0; i < len; ++i) {
                 switch (copy[i]) {
-                    case '{': ++brace_count; break;
-                    case '}': --brace_count; break;
-                    default:
-                    if (brace_count == 0) {
-                        switch (copy[i]) {
-                            case '(':
-                            case ')':
-                            case ',':
-                                copy[i] = 0;
+                    case '(':
+                    case ')':
+                    case ',':
+                        copy[i] = 0;
 
-                                if (str_front >= 0)
-                                switch (str_idx++) {
-                                    case 0: // major
-                                        pqxx::from_string(&copy[str_front+1], vers.major);
-                                        break;
-                                    case 1: // minor
-                                        pqxx::from_string(&copy[str_front+1], vers.minor);
-                                        break;
-                                    case 2: // patch
-                                        pqxx::from_string(&copy[str_front+1], vers.patch);
-                                        break;
-                                    case 3:
-                                        pqxx::from_string(&copy[str_front+1], vers.prerelease_ids);
-                                        break;
-                                    case 4:
-                                        pqxx::from_string(&copy[str_front+1], vers.build_ids);
-                                        break;
-                                }
-
-                                str_front = i; // str_front will be the null before
-                                continue;
+                        if (str_front >= 0)
+                        switch (str_idx++) {
+                            case 0: // major
+                                pqxx::from_string(&copy[str_front+1], vers.major);
+                                break;
+                            case 1: // minor
+                                pqxx::from_string(&copy[str_front+1], vers.minor);
+                                break;
+                            case 2: // patch
+                                pqxx::from_string(&copy[str_front+1], vers.patch);
+                                break;
+                            case 3:
+                                pqxx::from_string(&copy[str_front+1], vers.prerelease);
+                                break;
+                            case 4:
+                                pqxx::from_string(&copy[str_front+1], vers.build);
+                                break;
                         }
-                    }
+
+                        str_front = i; // str_front will be the null before
+                        continue;
+                    default: break;
                 }
             }
 
-            Obj = BeatMods::db::Version{version::Version_data{vers.major, vers.minor, vers.patch, vers.prerelease_ids, vers.build_ids}};
+            Obj = BeatMods::db::Version{vers.major, vers.minor, vers.patch, vers.prerelease, vers.build};
         }
         static std::string to_string(BeatMods::db::Version const& Obj) 
         {
             std::ostringstream strm{"("};
-            auto const verDat = Obj.data();
-            strm << pqxx::to_string(verDat.major) << ","
-                 << pqxx::to_string(verDat.minor) << ","
-                 << pqxx::to_string(verDat.patch) << ",'"
-                 << pqxx::to_string(verDat.prerelease_ids) << "','" // TODO: fix these 2 to encode properly
-                 << pqxx::to_string(verDat.build_ids) << "')";
+            strm << pqxx::to_string(Obj.major()) << ","
+                 << pqxx::to_string(Obj.minor()) << ","
+                 << pqxx::to_string(Obj.patch()) << ","
+                 << pqxx::to_string(Obj.prerelease()) << "," // TODO: fix these 2 to encode properly
+                 << pqxx::to_string(Obj.build()) << ")";
             return strm.str();
         }
     };
@@ -230,25 +222,6 @@ namespace pqxx {
             strm << "'" << pqxx::to_string(Obj.id) << "'," // TODO: probably quote these properly, perhaps don't need it bc of requirements of id and range
                  << "'" << pqxx::to_string(Obj.versionRange) << "')";
             return strm.str();
-        }
-    };
-
-    template<> struct string_traits<version::Prerelease_identifier>
-    {
-        static constexpr const char *name() noexcept { return "version::Prerelease_identifier"; }
-        static constexpr bool has_null() noexcept { return false; }
-        static bool is_null(version::Prerelease_identifier const&) { return false; }
-        [[noreturn]] static version::Prerelease_identifier null()
-        { internal::throw_null_conversion(name()); }
-        static void from_string(const char Str[], version::Prerelease_identifier& Obj) 
-        { 
-            std::string str;
-            pqxx::from_string(Str, str);
-            Obj = {str, version::Id_type::alnum};
-        }
-        static std::string to_string(version::Prerelease_identifier const& Obj) 
-        {
-            return pqxx::to_string(Obj.first);
         }
     };
 
