@@ -216,25 +216,62 @@ typename _id_instantiator<T>::IdType _id_instantiator<T>::fkey(foreign_key<T, id
     else                  return get_unresolved(arg);
 }
 
-namespace {
+template<typename T>
+std::shared_mutex _id_instantiator<T>::mutex;
+template<typename T>
+std::map<typename _id_instantiator<T>::IdType, std::weak_ptr<T>> _id_instantiator<T>::ptr_map;
 
-    template<typename T, typename IType = id_type_t<T>>
-    std::shared_ptr<T> make_cached_shared(IType const& id)
-    {
-        static std::map<IType, std::weak_ptr<T>> ptrCache;
+template<typename T>
+std::shared_ptr<T> _id_instantiator<T>::from_id(_id_instantiator<T>::IdType const& id) {
+    std::unique_lock ulock {mutex, std::defer_lock};
+    std::shared_lock slock {mutex};
 
-        auto loc = ptrCache.find(id);
-        if (loc != ptrCache.end()) {
-            if (!loc->second.expired())
-                return loc->second.lock();
-            else ptrCache.erase(loc);
+    auto loc = ptr_map.find(id);
+    if (loc != ptr_map.end()) {
+        if (!loc->second.expired())
+            return loc->second.lock();
+        else {
+            slock.unlock();
+            ulock.lock(); //upgrade
+
+            ptr_map.erase(loc);
         }
-
-        auto ptr = std::make_shared<T>();
-        BeatMods::db::id(*ptr) = id;
-        ptrCache.insert({id, ptr});
-        return ptr;
     }
+
+    if (slock) slock.unlock();
+    if (!ulock) ulock.lock();
+
+    auto ptr = std::make_shared<T>();
+    BeatMods::db::id(*ptr) = id;
+    ptr_map.insert({id, ptr});
+    return ptr;
+}
+
+template<typename T>
+std::shared_ptr<T> _id_instantiator<T>::insert(std::shared_ptr<T> const& ptr) {
+    std::unique_lock ulock {mutex, std::defer_lock};
+    std::shared_lock slock {mutex};
+
+    auto loc = ptr_map.find(id(*ptr));
+    if (loc != ptr_map.end()) {
+        if (!loc->second.expired())
+            return loc->second.lock();
+        else {
+            slock.unlock();
+            ulock.lock(); //upgrade
+
+            ptr_map.erase(loc);
+        }
+    }
+
+    if (slock) slock.unlock();
+    if (!ulock) ulock.lock();
+    
+    ptr_map.insert({id(*ptr), ptr});
+    return ptr;
+}
+
+namespace {
 
     template<typename TR,
         typename = std::enable_if_t<std::is_same_v<typename TR::_type::request, TR>>>
@@ -430,8 +467,10 @@ namespace {
             return value; \
         }
     
-    #define DEFAULT_CREATE_FROM_ID(_TYPE, idField) make_cached_shared<_TYPE>(row[cid++].as<decltype(_TYPE{}.idField)>())
+    #define DEFAULT_CREATE_FROM_ID(_TYPE, idField) _id_instantiator<_TYPE>::from_id(row[cid++].as<decltype(_TYPE{}.idField)>())
     #define NO_CREATE_FROM_ID(_TYPE, idField) std::make_shared<_TYPE>()
+
+    // Actual definitions //
 
     #define _User_FIELDS(M, ...) \
         M(name, __VA_ARGS__) M(profile, __VA_ARGS__) M(created, __VA_ARGS__) M(githubId, __VA_ARGS__)

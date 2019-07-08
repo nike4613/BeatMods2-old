@@ -100,6 +100,7 @@ int main()
             { .name = true }, 
             author.get(), 
             db::PgCompareOp::Like);
+
         for (auto user : result) {
             std::cout << user->name << " (" << user->id << ") created " << pqxx::to_string(user->created) << std::endl << user->profile << std::endl;
         }

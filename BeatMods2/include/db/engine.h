@@ -16,6 +16,7 @@
 #include "util/json.h"
 #include "util/semver.h"
 #include "util/macro.h"
+#include "util/thread.h"
 
 namespace BeatMods::db {
 
@@ -402,6 +403,15 @@ namespace BeatMods::db {
         static IdType& id(T&);
         static IdType id(T const&);
         static IdType fkey(foreign_key<T, IdType> const&);
+
+        static std::shared_ptr<T> from_id(IdType const&);
+        static std::shared_ptr<T> insert(std::shared_ptr<T> const&);
+        static void insert_modify(std::shared_ptr<T>& ptr)
+        { ptr = insert(ptr); }
+
+    private:
+        static std::shared_mutex mutex;
+        static std::map<IdType, std::weak_ptr<T>> ptr_map;
     };
 
     template<typename T>
@@ -409,7 +419,18 @@ namespace BeatMods::db {
     template<typename T>
     auto id(T const& arg) { return _id_instantiator<T>::id(arg); }
     template<typename T>
-    auto foreign_key_id(foreign_key<T, id_type_t<T>> const& arg) { return _id_instantiator<T>::fkey(arg); }
+    auto foreign_key_id(foreign_key<T, id_type_t<T>> const& arg) 
+    { return _id_instantiator<T>::fkey(arg); }
+
+    template<typename T>
+    auto shared_from_id(id_type_t<T> const& id)
+    { return _id_instantiator<T>::from_id(id); }
+    template<typename T>
+    auto store_shared(std::shared_ptr<T> const& sh)
+    { return _id_instantiator<T>::insert(sh); }
+    template<typename T>
+    void update_shared(std::shared_ptr<T>& sh)
+    { _id_instantiator<T>::insert_modify(sh); }
 
     template struct _id_instantiator<User>;
     template struct _id_instantiator<NewsItem>;
