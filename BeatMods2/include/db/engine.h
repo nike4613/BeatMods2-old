@@ -72,6 +72,17 @@ namespace BeatMods::db {
     template<typename T>
     using foreign_key_unresolved_t = typename foreign_key_unresolved<T>::type;
 
+    template<typename T>
+    using nullable = std::optional<T>;
+
+    template<typename T>
+    struct is_nullable : std::false_type {};
+    template<typename T>
+    struct is_nullable<nullable<T>> : std::true_type {};
+
+    template<typename T>
+    inline constexpr bool is_nullable_v = is_nullable<T>::value;
+
     enum class Approval {
         Approved, Declined, Pending, Inactive
     };
@@ -113,6 +124,7 @@ namespace BeatMods::db {
     // Tables //
 
     struct User {
+        bool id_valid = false;
         UUID id; // PKey (when creating, this is never used; instead DB default is)
         std::string name; // Unique
         std::string profile;
@@ -128,6 +140,7 @@ namespace BeatMods::db {
     
 
     struct GameVersion {
+        bool id_valid = false;
         UUID id; // PKey (when creating, this is never used; instead DB default is)
         Version version;
         BigInteger steamBuildId;
@@ -142,6 +155,7 @@ namespace BeatMods::db {
     };
 
     struct Mod {
+        bool id_valid = false;
         UUID uuid; // PKey (when creating, this is never used; instead DB default is)
         std::string id;
         std::string name;
@@ -152,7 +166,7 @@ namespace BeatMods::db {
         System system;
         TimeStamp uploaded;
         Approval approvalState;
-    	std::optional<TimeStamp> approved;
+    	nullable<TimeStamp> approved;
         bool required;
         std::vector<ModRange> dependsOn;
         std::vector<ModRange> conflictsWith;
@@ -191,6 +205,7 @@ namespace BeatMods::db {
     };
 
     struct Group {
+        bool id_valid = false;
         BigInteger id; // PKey (when creating, this is never used; instead DB default is)
         std::string name;
         std::vector<Permission> permissions;
@@ -203,6 +218,7 @@ namespace BeatMods::db {
     };
 
     struct Tag {
+        bool id_valid = false;
         BigInteger id; // PKey (when creating, this is never used; instead DB default is)
         std::string name;
 
@@ -214,13 +230,14 @@ namespace BeatMods::db {
     };
 
     struct NewsItem {
+        bool id_valid = false;
         UUID id; // PKey (when creating, this is never used; instead DB default is)
         std::string title;
         foreign_key<User, UUID> author; // FKey Users.id
         std::string body;
         TimeStamp posted;
-        std::optional<TimeStamp> edited;
-        std::optional<System> system;
+        nullable<TimeStamp> edited;
+        nullable<System> system;
 
         static constexpr char const* table = "\"mod-repo\".\"News\"";
         struct request {
@@ -285,6 +302,7 @@ namespace BeatMods::db {
         };
 
         struct LogItem {
+            bool id_valid = false;
             BigInteger id;
             TimeStamp time;
             std::string message;
@@ -364,28 +382,45 @@ namespace BeatMods::db {
     struct _request_instantiator {
         static std::vector<std::shared_ptr<T>> lookup(
             pqxx::transaction_base& transaction,
-            typename T::request const& returnFields, 
-            typename T::request const& searchFields = {}, 
+            typename T::request returnFields, 
+            typename T::request searchFields = {}, 
             T const* searchValues = nullptr,
             PgCompareOp compareOp = PgCompareOp::Equal,
             std::string_view additionalClauses = "");
         static size_t insert(
             pqxx::transaction_base& transaction,
-            T const* value);
-    };
+            std::vector<std::shared_ptr<T>>& value);
+     };
 
     template<typename T>
     auto lookup(
         pqxx::transaction_base& transaction,
-        typename T::request const& returnFields,
+        typename T::request returnFields,
         std::string_view additionalClauses = "", 
-        typename T::request const& searchFields = {}, 
+        typename T::request searchFields = {}, 
         T const* searchValues = nullptr,
         PgCompareOp compareOp = PgCompareOp::Equal)
     { return _request_instantiator<T>::lookup(transaction, returnFields, searchFields, searchValues, compareOp, additionalClauses); }
+
+    // value ptrs must have all values set properly, and no valid id
+    // ptrs will be added to internal maps once the id fields have been generated,
+    // and it will be updated in place
+    // all foreign keys must be added first (TODO: change this?)
+    template<typename T>
+    auto insert(
+        pqxx::transaction_base& transaction,
+        std::vector<std::shared_ptr<T>>& value)
+    { return _request_instantiator<T>::insert(transaction, value); }
+
+    // temporary overload
+    template<typename T>
+    auto insert(
+        pqxx::transaction_base& transaction,
+        std::vector<std::shared_ptr<T>>&& value)
+    { return insert(transaction, value); }
     
-    template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times
     template struct _request_instantiator<NewsItem>;
+    /*template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times
     template struct _request_instantiator<Tag>;
     template struct _request_instantiator<Group>;
     template struct _request_instantiator<GameVersion>;
@@ -395,15 +430,14 @@ namespace BeatMods::db {
     template struct _request_instantiator<Mods_Tags_JoinItem>;
     template struct _request_instantiator<Users_Groups_JoinItem>;
     template struct _request_instantiator<state::LogItem>;
-    template struct _request_instantiator<state::Token>;
+    template struct _request_instantiator<state::Token>;*/
 
     template<typename T>
     struct _id_instantiator {
         using IdType = id_type_t<T>;
         static IdType& id(T&);
         static IdType id(T const&);
-        static IdType fkey(foreign_key<T, IdType> const&);
-
+        
         static std::shared_ptr<T> from_id(IdType const&);
         static std::shared_ptr<T> insert(std::shared_ptr<T> const&);
         static void insert_modify(std::shared_ptr<T>& ptr)
@@ -419,8 +453,10 @@ namespace BeatMods::db {
     template<typename T>
     auto id(T const& arg) { return _id_instantiator<T>::id(arg); }
     template<typename T>
-    auto foreign_key_id(foreign_key<T, id_type_t<T>> const& arg) 
-    { return _id_instantiator<T>::fkey(arg); }
+    auto foreign_key_id(foreign_key<T, id_type_t<T>> const& arg) { 
+        if (is_resolved(arg)) return id(*get_resolved(arg));
+        else                  return get_unresolved(arg);
+    }
 
     template<typename T>
     auto shared_from_id(id_type_t<T> const& id)

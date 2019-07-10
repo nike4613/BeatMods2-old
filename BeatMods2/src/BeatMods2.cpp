@@ -88,7 +88,21 @@ int main()
 
         pqxx::work transaction {conn};
         
-        db::NewsItem lookupValues;
+        auto newItem = std::make_shared<db::NewsItem>();
+        newItem->author = "2c4406d3-dcf8-4195-97a4-8d4819213b93";
+        newItem->body = "Hello! This was created from the server application!";
+        newItem->edited = std::nullopt;
+        newItem->posted = std::chrono::system_clock::now();
+        newItem->system = db::System::PC;
+        newItem->title = "Test from main application";
+
+        std::cout << newItem->id << std::endl;
+
+        db::insert(transaction, std::vector{newItem}); // note that this adds to the transaction, so for it to actually apply transaction.commit() must be called
+
+        std::cout << newItem->id << std::endl;
+
+        /*db::NewsItem lookupValues;
         auto author = std::make_shared<db::User>();
         lookupValues.author = author;
         author->name = "DaNike";
@@ -128,7 +142,7 @@ int main()
 
         auto result4 = db::lookup<db::Mod>(
             transaction,
-            {
+            { // apparently this is a C++20 language feature that has been in GCC since 4.7 and Clang since 3.0
                 .uuid = true, .id = true, .name = true, 
                 .author = true, .author_resolve = true,
                 .version = true,
@@ -199,7 +213,7 @@ int main()
             auto g = db::get_resolved(join->group);
             std::cout << gv->version << " vis " << std::to_string(gv->visibility) << " (" << gv->id << ") "
                 << "allows group " << g->name << std::endl;
-        }
+        }*/
     }
     catch (std::exception const& e)
     {    

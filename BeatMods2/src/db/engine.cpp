@@ -141,30 +141,34 @@ namespace {
     template<typename T>
     SerializeResponse serialize_for_lookup(
         pqxx::connection_base& conn, 
-        typename T::request const& responseFields, 
-        typename T::request const& fields, 
+        typename T::request responseFields, 
+        typename T::request fields, 
         T const* values,
         PgCompareOp compareOp,
         bool joinPart,
         std::string_view additionalClauses);
     template<typename T>
-    SerializeResponse serialize_for_insert(
-        pqxx::connection_base& conn, 
-        T const* values);
-    template<typename T>
     std::shared_ptr<T> deserialize_from_request(
         pqxx::row const& row, 
-        typename T::request const& responseFields,
+        typename T::request responseFields,
         bool isFromJoin,
         int& colStartOffset);
-
+    
+    template<typename T>
+    SerializeResponse serialize_for_insert(
+        pqxx::connection_base& conn, 
+        std::vector<std::shared_ptr<T>> const& values);
+    template<typename T>
+    void update_after_insert(
+        pqxx::row const& row,
+        std::shared_ptr<T>& obj);
 }
 
 template<typename T>
 std::vector<std::shared_ptr<T>> _request_instantiator<T>::lookup(
     pqxx::transaction_base& transaction,
-    typename T::request const& returnFields, 
-    typename T::request const& searchFields,
+    typename T::request returnFields, 
+    typename T::request searchFields,
     T const* searchValues,
     PgCompareOp compareOp,
     std::string_view additionalClauses)
@@ -172,8 +176,7 @@ std::vector<std::shared_ptr<T>> _request_instantiator<T>::lookup(
     auto serialized = serialize_for_lookup(transaction.conn(), returnFields, searchFields, searchValues, compareOp, false, additionalClauses);
 
     pqxx::result queryResult;
-    switch (serialized.statementType)
-    {
+    switch (serialized.statementType) {
     case SerializeResponse::kNormal: 
         queryResult = transaction.exec_params(serialized.nameOrQuery, pqxx::prepare::make_dynamic_params(serialized.queryParams));
         break;
@@ -187,13 +190,38 @@ std::vector<std::shared_ptr<T>> _request_instantiator<T>::lookup(
 
     std::vector<std::shared_ptr<T>> deserializedResult {queryResult.size()};
 
-    for (auto i = 0; i < queryResult.size(); ++i)
-    {
+    for (auto i = 0; i < queryResult.size(); ++i) {
         int colId = 0;
         deserializedResult[i] = deserialize_from_request<T>(queryResult[i], returnFields, false, colId);
     }
 
     return deserializedResult;
+}
+
+template<typename T>
+size_t _request_instantiator<T>::insert(
+    pqxx::transaction_base& transaction,
+    std::vector<std::shared_ptr<T>>& values) 
+{
+    auto serialized = serialize_for_insert(transaction.conn(), values);
+
+    pqxx::result queryResult;
+    switch (serialized.statementType) {
+    case SerializeResponse::kNormal: 
+        queryResult = transaction.exec_params(serialized.nameOrQuery, pqxx::prepare::make_dynamic_params(serialized.queryParams));
+        break;
+    case SerializeResponse::kPrepared: 
+        queryResult = transaction.exec_prepared(serialized.nameOrQuery, pqxx::prepare::make_dynamic_params(serialized.queryParams));
+        break;
+    case SerializeResponse::kJoinPart:
+        throw std::runtime_error("serialize_for_insert returned a kJoinPart");
+        break;
+    }
+
+    for (auto i = 0; i < queryResult.size(); ++i)
+        update_after_insert(queryResult[i], values[i]);
+
+    return queryResult.size();
 }
 
 template<typename T>
@@ -209,12 +237,6 @@ typename _id_instantiator<T>::IdType _id_instantiator<T>::id(T const& arg)
 template<>
 typename _id_instantiator<Mod>::IdType _id_instantiator<Mod>::id(Mod const& arg)
 { return arg.uuid; }
-
-template<typename T>
-typename _id_instantiator<T>::IdType _id_instantiator<T>::fkey(foreign_key<T, id_type_t<T>> const& arg) { 
-    if (is_resolved(arg)) return id(*get_resolved(arg));
-    else                  return get_unresolved(arg);
-}
 
 template<typename T>
 std::shared_mutex _id_instantiator<T>::mutex;
@@ -243,6 +265,7 @@ std::shared_ptr<T> _id_instantiator<T>::from_id(_id_instantiator<T>::IdType cons
 
     auto ptr = std::make_shared<T>();
     BeatMods::db::id(*ptr) = id;
+    ptr->id_valid = true;
     ptr_map.insert({id, ptr});
     return ptr;
 }
@@ -267,6 +290,7 @@ std::shared_ptr<T> _id_instantiator<T>::insert(std::shared_ptr<T> const& ptr) {
     if (slock) slock.unlock();
     if (!ulock) ulock.lock();
     
+    sassert(ptr->id_valid); // must have valid id field to behave
     ptr_map.insert({id(*ptr), ptr});
     return ptr;
 }
@@ -376,8 +400,8 @@ namespace {
         template<> \
         SerializeResponse serialize_for_lookup( \
             pqxx::connection_base& conn, \
-            _TYPE::request const& responseFields, \
-            _TYPE::request const& fields, \
+            _TYPE::request responseFields, \
+            _TYPE::request fields, \
             _TYPE const* values, \
             PgCompareOp compareOp, \
             bool joinPart, \
@@ -457,7 +481,7 @@ namespace {
         template<> \
         std::shared_ptr<_TYPE> deserialize_from_request( \
             pqxx::row const& row, \
-            typename _TYPE::request const& responseFields, \
+            typename _TYPE::request responseFields, \
             bool isFromJoin, \
             int& cid) \
         { /* prefer deserializing by index */ \
@@ -481,8 +505,8 @@ namespace {
     SPECIALIZE_DESERIALIZER_FOR(User, id, DEFAULT_CREATE_FROM_ID)
 
     #define _NewsItem_FIELDS(M, ...) \
-        M(title, __VA_ARGS__) M(author, __VA_ARGS__) M(body, __VA_ARGS__) \
-        M(posted, __VA_ARGS__) M(edited, __VA_ARGS__) M(system, __VA_ARGS__) 
+        M(title, __VA_ARGS__) M(body, __VA_ARGS__) M(posted, __VA_ARGS__) \
+        M(edited, __VA_ARGS__) M(system, __VA_ARGS__) 
     #define NewsItem_FIELDS(M, ...) EXEC(_NewsItem_FIELDS(M, __VA_ARGS__))
     #define _NewsItem_FOREIGN_FIELDS(M, ...) \
         M(author, id, __VA_ARGS__)
@@ -490,6 +514,90 @@ namespace {
 
     SPECIALIZE_SERIALIZER_FOR(NewsItem, id, true)
     SPECIALIZE_DESERIALIZER_FOR(NewsItem, id, DEFAULT_CREATE_FROM_ID)
+
+    template<typename TV, typename OStream>
+    void insert_write_field_placeholder(OStream& sql, TV const& value, int& fid) {
+        if constexpr (is_nullable_v<TV>) { \
+            if (value.has_value()) sql << "$" << fid++; \
+            else sql << "NULL"; \
+        } else {
+            sql << "$" << fid++; 
+        }
+    }
+
+    template<typename TV>
+    void insert_append_value(TV const& value, std::vector<std::string>& vec) {
+        if constexpr (is_nullable_v<TV>) { \
+            if (value.has_value()) vec.emplace_back(pqxx::to_string(value)); \
+        } else vec.emplace_back(pqxx::to_string(value));
+    }
+
+    template<>
+    SerializeResponse serialize_for_insert(
+        pqxx::connection_base& conn, 
+        std::vector<std::shared_ptr<NewsItem>> const& values)
+    {
+        std::ostringstream sql {};
+
+        int fid = 1;
+        sql << "INSERT INTO " << NewsItem::table << " (";
+
+        #define VALUE_IDS(name, _, hasBefore, sql,  ...) \
+            if (hasBefore) sql << ","; \
+            sql << "\"" STR(name) "\""; \
+            hasBefore = true;
+        
+        bool hasBefore = false;
+        sql << "\"" STR(id) "\""; hasBefore = true; // this gets popped for the no id case
+        NewsItem_FIELDS(VALUE_IDS, _, hasBefore, sql);
+        NewsItem_FOREIGN_FIELDS(VALUE_IDS, hasBefore, sql);
+        sql << ") ";
+
+        #define VALUE_VALUES(name, _, vals, i, sql, fid, hasBefore, ...) \
+            if (hasBefore) sql << ","; \
+            insert_write_field_placeholder(sql, vals[i]->name, fid); \
+            hasBefore = true;
+        
+        for (size_t i = 0; i < values.size(); ++i) {
+            hasBefore = false;
+            sql << "VALUES (";
+
+            sql << "DEFAULT"; hasBefore = true; // popped in the no ID case
+            NewsItem_FIELDS(VALUE_VALUES, _, values, i, sql, fid, hasBefore);
+            NewsItem_FOREIGN_FIELDS(VALUE_VALUES, values, i, sql, fid, hasBefore);
+            sql << ") ";
+        }
+        sql << "RETURNING \"" STR(id) "\";";
+
+        SerializeResponse resp {SerializeResponse::kNormal, sql.str()};
+        resp.queryParams.reserve(fid - 1);
+
+        #define ENCODE_FIELD(name, obj, vec) \
+            insert_append_value(obj->name, vec);
+        
+        #define ENCODE_FOREIGN_FIELD(name, _id, obj, vec) \
+            if (is_resolved(obj->name)) sassert(get_resolved(obj->name)->id_valid) \
+            else sassert(is_unresolved(obj->name)) /* can actually be neither */ \
+            ENCODE_FIELD(name, obj, vec);
+
+        for (auto const& ptr : values) {
+            sassert(!ptr->id_valid);
+            NewsItem_FIELDS(ENCODE_FIELD, ptr, resp.queryParams);
+            NewsItem_FOREIGN_FIELDS(ENCODE_FOREIGN_FIELD, ptr, resp.queryParams);
+        }
+
+        return resp;
+    }
+
+    template<>
+    void update_after_insert(
+        pqxx::row const& row,
+        std::shared_ptr<NewsItem>& obj)
+    {
+        id(*obj) = row[0].as<id_type_t<NewsItem>>();
+        obj->id_valid = true;
+        update_shared(obj);
+    }
 
     #define _Tag_FIELDS(M, ...) \
         M(name, __VA_ARGS__)
