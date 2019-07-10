@@ -166,7 +166,7 @@ namespace BeatMods::db {
         System system;
         TimeStamp uploaded;
         Approval approvalState;
-    	nullable<TimeStamp> approved;
+        nullable<TimeStamp> approved;
         bool required;
         std::vector<ModRange> dependsOn;
         std::vector<ModRange> conflictsWith;
