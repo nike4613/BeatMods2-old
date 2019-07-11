@@ -420,7 +420,7 @@ namespace BeatMods::db {
     { return insert(transaction, value); }
     
     template struct _request_instantiator<NewsItem>;
-    /*template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times
+    template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times
     template struct _request_instantiator<Tag>;
     template struct _request_instantiator<Group>;
     template struct _request_instantiator<GameVersion>;
@@ -430,7 +430,7 @@ namespace BeatMods::db {
     template struct _request_instantiator<Mods_Tags_JoinItem>;
     template struct _request_instantiator<Users_Groups_JoinItem>;
     template struct _request_instantiator<state::LogItem>;
-    template struct _request_instantiator<state::Token>;*/
+    template struct _request_instantiator<state::Token>;
 
     template<typename T>
     struct _id_instantiator {

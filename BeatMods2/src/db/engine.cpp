@@ -332,6 +332,23 @@ namespace {
         }
     };
 
+    template<typename TV, typename OStream>
+    void insert_write_field_placeholder(OStream& sql, TV const& value, int& fid) {
+        if constexpr (is_nullable_v<TV>) { \
+            if (value.has_value()) sql << "$" << fid++; \
+            else sql << "NULL"; \
+        } else {
+            sql << "$" << fid++; 
+        }
+    }
+
+    template<typename TV>
+    void insert_append_value(TV const& value, std::vector<std::string>& vec) {
+        if constexpr (is_nullable_v<TV>) { \
+            if (value.has_value()) vec.emplace_back(pqxx::to_string(value)); \
+        } else vec.emplace_back(pqxx::to_string(value));
+    }
+
     #define COUNT_WHERE_CLAUSE(name, fields, whereCount) if (fields.name) ++whereCount;
     #define WHERE_CLAUSE_FIELD(name, type, op, fields, stream, fieldNum) \
         if (fields.name) { \
@@ -395,6 +412,24 @@ namespace {
             value->name = \
                 deserialize_from_request<decltype(responseFields.name ## _request)::_type> \
                     (row, responseFields.name ## _request, true, cid);
+
+    #define INSERT_ENCODE_FIELD(name, obj, vec) \
+        insert_append_value(obj->name, vec);
+    
+    #define INSERT_ENCODE_FOREIGN_FIELD(name, _id, obj, vec) \
+        if (is_resolved(obj->name)) sassert(get_resolved(obj->name)->id_valid) \
+        else sassert(is_unresolved(obj->name)) /* can actually be neither */ \
+        INSERT_ENCODE_FIELD(name, obj, vec);
+
+    #define INSERT_VALUE_IDS(name, _, hasBefore, sql,  ...) \
+        if (hasBefore) sql << ","; \
+        sql << "\"" STR(name) "\""; \
+        hasBefore = true;
+
+    #define INSERT_VALUE_VALUES(name, _, vals, i, sql, fid, hasBefore, ...) \
+        if (hasBefore) sql << ","; \
+        insert_write_field_placeholder(sql, vals[i]->name, fid); \
+        hasBefore = true;
 
     #define SPECIALIZE_SERIALIZER_FOR(_TYPE, idField, auto_ID) \
         template<> \
@@ -490,9 +525,85 @@ namespace {
             EXEC(_TYPE##_FOREIGN_FIELDS (JOIN_DESERIALIZE_FIELD, responseFields, value, row, cid)) \
             return value; \
         }
+
+    #define _SPECIALIZE_INSERTER_FOR(_TYPE, idField, INSERT_ID, INSERT_ID_VALUE, RETURN_ID, CHECK_ID_VALID) \
+        template<> \
+        SerializeResponse serialize_for_insert( \
+            pqxx::connection_base& conn, \
+            std::vector<std::shared_ptr<_TYPE>> const& values) \
+        { \
+            std::ostringstream sql {}; \
+            \
+            int fid = 1; \
+            sql << "INSERT INTO " << _TYPE::table << " ("; \
+            \
+            bool hasBefore = false; \
+            EXEC(INSERT_ID(id, sql, hasBefore)); \
+            EXEC(_TYPE##_FIELDS(INSERT_VALUE_IDS, _, hasBefore, sql)); \
+            EXEC(_TYPE##_FOREIGN_FIELDS(INSERT_VALUE_IDS, hasBefore, sql)); \
+            sql << ") "; \
+            \
+            for (size_t i = 0; i < values.size(); ++i) { \
+                hasBefore = false; \
+                sql << "VALUES ("; \
+                \
+                EXEC(INSERT_ID_VALUE(sql, hasBefore)); \
+                EXEC(_TYPE##_FIELDS(INSERT_VALUE_VALUES, _, values, i, sql, fid, hasBefore)); \
+                EXEC(_TYPE##_FOREIGN_FIELDS(INSERT_VALUE_VALUES, values, i, sql, fid, hasBefore)); \
+                sql << ") "; \
+            } \
+            EXEC(RETURN_ID(id, sql)); \
+            \
+            SerializeResponse resp {SerializeResponse::kNormal, sql.str()}; \
+            resp.queryParams.reserve(fid - 1); \
+            \
+            for (auto const& ptr : values) { \
+                EXEC(CHECK_ID_VALID(ptr)); \
+                EXEC(_TYPE##_FIELDS(INSERT_ENCODE_FIELD, ptr, resp.queryParams)); \
+                EXEC(_TYPE##_FOREIGN_FIELDS(INSERT_ENCODE_FOREIGN_FIELD, ptr, resp.queryParams)); \
+            } \
+            \
+            return resp; \
+        }
+    #define SPECIALIZE_INSERTER_FOR(name, id, PPACK) EXEC(PPACK(_SPECIALIZE_INSERTER_FOR, name, id))
+
+    #define SPECIALIZE_INSERT_UPDATE(_TYPE, UPDATE_ID) \
+        template<> \
+        void update_after_insert( \
+            pqxx::row const& row, \
+            std::shared_ptr<_TYPE>& obj) \
+        { EXEC(UPDATE_ID(row, obj)); }
+
+    #define NO_OP(...) // do nothing
     
     #define DEFAULT_CREATE_FROM_ID(_TYPE, idField) _id_instantiator<_TYPE>::from_id(row[cid++].as<decltype(_TYPE{}.idField)>())
     #define NO_CREATE_FROM_ID(_TYPE, idField) std::make_shared<_TYPE>()
+
+    #define DEFAULT_INSERT_ID(id, sql, hasBefore) sql << "\"" STR(id) "\""; hasBefore = true; // this gets popped for the no id case
+    #define DEFAULT_INSERT_ID_VALUE(sql, hasBefore) sql << "DEFAULT"; hasBefore = true; // popped in the no ID case
+    #define DEFAULT_RETURN_ID(id, sql) sql << "RETURNING \"" STR(id) "\";";
+    #define NO_RETURN_ID(id, sql) sql << ";";
+    #define DEFAULT_CHECK_ID_VALID(ptr) sassert(!ptr->id_valid);
+
+    #define DEFAULT_INSERTER_PARAMS(M, ...) EXEC(M(__VA_ARGS__, DEFAULT_INSERT_ID, DEFAULT_INSERT_ID_VALUE, DEFAULT_RETURN_ID, DEFAULT_CHECK_ID_VALID))
+    #define NO_OP_INSERTER_PARAMS(M, ...) EXEC(M(__VA_ARGS__, NO_OP, NO_OP, NO_RETURN_ID, NO_OP))
+
+    #define DEFAULT_UPDATE_ID(row, obj) \
+        id(*obj) = row[0].as<id_type_t<std::remove_reference_t<decltype(*obj)>>>(); \
+        obj->id_valid = true; \
+        update_shared(obj); \
+
+    #define SPECIALIZE_WITH_ID(_TYPE, idType) \
+        SPECIALIZE_SERIALIZER_FOR(_TYPE, idType, true) \
+        SPECIALIZE_DESERIALIZER_FOR(_TYPE, idType, DEFAULT_CREATE_FROM_ID) \
+        SPECIALIZE_INSERTER_FOR(_TYPE, idType, DEFAULT_INSERTER_PARAMS) \
+        SPECIALIZE_INSERT_UPDATE(_TYPE, DEFAULT_UPDATE_ID) \
+
+    #define SPECIALIZE_WITHOUT_ID(_TYPE, idType) \
+        SPECIALIZE_SERIALIZER_FOR(_TYPE, idType, false) \
+        SPECIALIZE_DESERIALIZER_FOR(_TYPE, idType, NO_CREATE_FROM_ID) \
+        SPECIALIZE_INSERTER_FOR(_TYPE, idType, NO_OP_INSERTER_PARAMS) \
+        SPECIALIZE_INSERT_UPDATE(_TYPE, NO_OP)
 
     // Actual definitions //
 
@@ -501,8 +612,7 @@ namespace {
     #define User_FIELDS(M, ...) EXEC(_User_FIELDS(M, __VA_ARGS__))
     #define User_FOREIGN_FIELDS(M, ...)
 
-    SPECIALIZE_SERIALIZER_FOR(User, id, true)
-    SPECIALIZE_DESERIALIZER_FOR(User, id, DEFAULT_CREATE_FROM_ID)
+    SPECIALIZE_WITH_ID(User, id)
 
     #define _NewsItem_FIELDS(M, ...) \
         M(title, __VA_ARGS__) M(body, __VA_ARGS__) M(posted, __VA_ARGS__) \
@@ -512,116 +622,28 @@ namespace {
         M(author, id, __VA_ARGS__)
     #define NewsItem_FOREIGN_FIELDS(M, ...) EXEC(_NewsItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZER_FOR(NewsItem, id, true)
-    SPECIALIZE_DESERIALIZER_FOR(NewsItem, id, DEFAULT_CREATE_FROM_ID)
-
-    template<typename TV, typename OStream>
-    void insert_write_field_placeholder(OStream& sql, TV const& value, int& fid) {
-        if constexpr (is_nullable_v<TV>) { \
-            if (value.has_value()) sql << "$" << fid++; \
-            else sql << "NULL"; \
-        } else {
-            sql << "$" << fid++; 
-        }
-    }
-
-    template<typename TV>
-    void insert_append_value(TV const& value, std::vector<std::string>& vec) {
-        if constexpr (is_nullable_v<TV>) { \
-            if (value.has_value()) vec.emplace_back(pqxx::to_string(value)); \
-        } else vec.emplace_back(pqxx::to_string(value));
-    }
-
-    template<>
-    SerializeResponse serialize_for_insert(
-        pqxx::connection_base& conn, 
-        std::vector<std::shared_ptr<NewsItem>> const& values)
-    {
-        std::ostringstream sql {};
-
-        int fid = 1;
-        sql << "INSERT INTO " << NewsItem::table << " (";
-
-        #define VALUE_IDS(name, _, hasBefore, sql,  ...) \
-            if (hasBefore) sql << ","; \
-            sql << "\"" STR(name) "\""; \
-            hasBefore = true;
-        
-        bool hasBefore = false;
-        sql << "\"" STR(id) "\""; hasBefore = true; // this gets popped for the no id case
-        NewsItem_FIELDS(VALUE_IDS, _, hasBefore, sql);
-        NewsItem_FOREIGN_FIELDS(VALUE_IDS, hasBefore, sql);
-        sql << ") ";
-
-        #define VALUE_VALUES(name, _, vals, i, sql, fid, hasBefore, ...) \
-            if (hasBefore) sql << ","; \
-            insert_write_field_placeholder(sql, vals[i]->name, fid); \
-            hasBefore = true;
-        
-        for (size_t i = 0; i < values.size(); ++i) {
-            hasBefore = false;
-            sql << "VALUES (";
-
-            sql << "DEFAULT"; hasBefore = true; // popped in the no ID case
-            NewsItem_FIELDS(VALUE_VALUES, _, values, i, sql, fid, hasBefore);
-            NewsItem_FOREIGN_FIELDS(VALUE_VALUES, values, i, sql, fid, hasBefore);
-            sql << ") ";
-        }
-        sql << "RETURNING \"" STR(id) "\";";
-
-        SerializeResponse resp {SerializeResponse::kNormal, sql.str()};
-        resp.queryParams.reserve(fid - 1);
-
-        #define ENCODE_FIELD(name, obj, vec) \
-            insert_append_value(obj->name, vec);
-        
-        #define ENCODE_FOREIGN_FIELD(name, _id, obj, vec) \
-            if (is_resolved(obj->name)) sassert(get_resolved(obj->name)->id_valid) \
-            else sassert(is_unresolved(obj->name)) /* can actually be neither */ \
-            ENCODE_FIELD(name, obj, vec);
-
-        for (auto const& ptr : values) {
-            sassert(!ptr->id_valid);
-            NewsItem_FIELDS(ENCODE_FIELD, ptr, resp.queryParams);
-            NewsItem_FOREIGN_FIELDS(ENCODE_FOREIGN_FIELD, ptr, resp.queryParams);
-        }
-
-        return resp;
-    }
-
-    template<>
-    void update_after_insert(
-        pqxx::row const& row,
-        std::shared_ptr<NewsItem>& obj)
-    {
-        id(*obj) = row[0].as<id_type_t<NewsItem>>();
-        obj->id_valid = true;
-        update_shared(obj);
-    }
+    SPECIALIZE_WITH_ID(NewsItem, id)
 
     #define _Tag_FIELDS(M, ...) \
         M(name, __VA_ARGS__)
     #define Tag_FIELDS(M, ...) EXEC(_Tag_FIELDS(M, __VA_ARGS__))
     #define Tag_FOREIGN_FIELDS(M, ...)
 
-    SPECIALIZE_SERIALIZER_FOR(Tag, id, true)
-    SPECIALIZE_DESERIALIZER_FOR(Tag, id, DEFAULT_CREATE_FROM_ID)
+    SPECIALIZE_WITH_ID(Tag, id)
 
     #define _GameVersion_FIELDS(M, ...) \
         M(version, __VA_ARGS__) M(steamBuildId, __VA_ARGS__) M(visibility, __VA_ARGS__) 
     #define GameVersion_FIELDS(M, ...) EXEC(_GameVersion_FIELDS(M, __VA_ARGS__))
     #define GameVersion_FOREIGN_FIELDS(M, ...)
 
-    SPECIALIZE_SERIALIZER_FOR(GameVersion, id, true)
-    SPECIALIZE_DESERIALIZER_FOR(GameVersion, id, DEFAULT_CREATE_FROM_ID)
+    SPECIALIZE_WITH_ID(GameVersion, id)
 
     #define _Group_FIELDS(M, ...) \
         M(name, __VA_ARGS__) M(permissions, __VA_ARGS__)
     #define Group_FIELDS(M, ...) EXEC(_Group_FIELDS(M, __VA_ARGS__))
     #define Group_FOREIGN_FIELDS(M, ...)
 
-    SPECIALIZE_SERIALIZER_FOR(Group, id, true)
-    SPECIALIZE_DESERIALIZER_FOR(Group, id, DEFAULT_CREATE_FROM_ID)
+    SPECIALIZE_WITH_ID(Group, id)
 
     #define _Mod_FIELDS(M, ...) \
         M(id, __VA_ARGS__) M(name, __VA_ARGS__) M(description, __VA_ARGS__) \
@@ -633,8 +655,7 @@ namespace {
         M(author, id, __VA_ARGS__) M(gameVersion, id, __VA_ARGS__)
     #define Mod_FOREIGN_FIELDS(M, ...) EXEC(_Mod_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZER_FOR(Mod, uuid, true)
-    SPECIALIZE_DESERIALIZER_FOR(Mod, uuid, DEFAULT_CREATE_FROM_ID)
+    SPECIALIZE_WITH_ID(Mod, uuid)
     
     #define _Download_FIELDS(M, ...) \
         M(type, __VA_ARGS__) M(cdnFile, __VA_ARGS__) M(hashes, __VA_ARGS__) 
@@ -643,41 +664,36 @@ namespace {
         M(mod, uuid, __VA_ARGS__)
     #define Download_FOREIGN_FIELDS(M, ...) EXEC(_Download_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZER_FOR(Download, mod, false)
-    SPECIALIZE_DESERIALIZER_FOR(Download, mod, NO_CREATE_FROM_ID)
+    SPECIALIZE_WITHOUT_ID(Download, mod)
 
     #define GameVersion_VisibleGroups_JoinItem_FIELDS(M, ...)
     #define _GameVersion_VisibleGroups_JoinItem_FOREIGN_FIELDS(M, ...) \
         M(gameVersion, id, __VA_ARGS__) M(group, id, __VA_ARGS__)
     #define GameVersion_VisibleGroups_JoinItem_FOREIGN_FIELDS(M, ...) EXEC(_GameVersion_VisibleGroups_JoinItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZER_FOR(GameVersion_VisibleGroups_JoinItem, group, false) // ID field here must be a valid field, but not necessarily an id field if the 3rd is false
-    SPECIALIZE_DESERIALIZER_FOR(GameVersion_VisibleGroups_JoinItem, , NO_CREATE_FROM_ID)
+    SPECIALIZE_WITHOUT_ID(GameVersion_VisibleGroups_JoinItem, group)
 
     #define Mods_Tags_JoinItem_FIELDS(M, ...)
     #define _Mods_Tags_JoinItem_FOREIGN_FIELDS(M, ...) \
         M(mod, uuid, __VA_ARGS__) M(tag, id, __VA_ARGS__)
     #define Mods_Tags_JoinItem_FOREIGN_FIELDS(M, ...) EXEC(_Mods_Tags_JoinItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZER_FOR(Mods_Tags_JoinItem, mod, false) // ID field here must be a valid field, but not necessarily an id field if the 3rd is false
-    SPECIALIZE_DESERIALIZER_FOR(Mods_Tags_JoinItem, , NO_CREATE_FROM_ID)
+    SPECIALIZE_WITHOUT_ID(Mods_Tags_JoinItem, mod)
 
     #define Users_Groups_JoinItem_FIELDS(M, ...)
     #define _Users_Groups_JoinItem_FOREIGN_FIELDS(M, ...) \
         M(user, id, __VA_ARGS__) M(group, id, __VA_ARGS__)
     #define Users_Groups_JoinItem_FOREIGN_FIELDS(M, ...) EXEC(_Users_Groups_JoinItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZER_FOR(Users_Groups_JoinItem, user, false) // ID field here must be a valid field, but not necessarily an id field if the 3rd is false
-    SPECIALIZE_DESERIALIZER_FOR(Users_Groups_JoinItem, , NO_CREATE_FROM_ID)
+    SPECIALIZE_WITHOUT_ID(Users_Groups_JoinItem, user)
 
     using namespace state;
     #define _LogItem_FIELDS(M, ...) \
         M(time, __VA_ARGS__) M(message, __VA_ARGS__) M(level, __VA_ARGS__)
     #define LogItem_FIELDS(M, ...) EXEC(_LogItem_FIELDS(M, __VA_ARGS__))
     #define LogItem_FOREIGN_FIELDS(M, ...)
-
-    SPECIALIZE_SERIALIZER_FOR(LogItem, id, true)
-    SPECIALIZE_DESERIALIZER_FOR(LogItem, id, DEFAULT_CREATE_FROM_ID)
+    
+    SPECIALIZE_WITH_ID(LogItem, id)
 
     #define _Token_FIELDS(M, ...) \
         M(token, __VA_ARGS__) 
@@ -686,7 +702,6 @@ namespace {
         M(user, id, __VA_ARGS__)
     #define Token_FOREIGN_FIELDS(M, ...) EXEC(_Token_FOREIGN_FIELDS(M, __VA_ARGS__))
 
-    SPECIALIZE_SERIALIZER_FOR(Token, token, false)
-    SPECIALIZE_DESERIALIZER_FOR(Token, token, NO_CREATE_FROM_ID)
+    SPECIALIZE_WITHOUT_ID(Token, token)
 
 }
