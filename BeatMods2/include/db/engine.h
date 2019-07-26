@@ -13,6 +13,9 @@
 #include <exception>
 #include <typeinfo>
 #include <cstring>
+#include <numeric>
+#include <algorithm>
+#include <excecution>
 #include "util/json.h"
 #include "util/semver.h"
 #include "util/macro.h"
@@ -122,6 +125,24 @@ namespace BeatMods::db {
     };
 
     // Tables //
+
+    template<typename T, typename = void>
+    struct is_table : std::false_type {};
+    template<typename T>
+    struct is_table<T, std::void_t<
+        std::enable_if_t<std::is_same_v<typename T::request::_type, T>>
+    >> : std::true_type {};
+    template<typename T>
+    constexpr auto is_table_v = is_table<T>::value;
+
+    template<typename T, typename = void>
+    struct is_table_request : std::false_type {};
+    template<typename T>
+    struct is_table_request<T, std::void_t<
+        std::enable_if_t<std::is_same_v<typename T::_type::request, T>>
+    >> : std::true_type {};
+    template<typename T>
+    constexpr auto is_table_request_v = is_table_request<T>::value;
 
     struct User {
         bool id_valid = false;
@@ -378,6 +399,12 @@ namespace BeatMods::db {
     template<typename T>
     using id_type_t = typename id_type<T>::type;
 
+    template<typename TR>
+    constexpr auto all_fields() -> std::enable_if_t<is_table_request_v<TR>, TR> {
+        uint8_t data[sizeof(TR)] = {0xFF};
+        return *reinterpret_cast<TR*>(data);
+    }
+
     template<typename T>
     struct _request_instantiator {
         static std::vector<std::shared_ptr<T>> lookup(
@@ -389,7 +416,11 @@ namespace BeatMods::db {
             std::string_view additionalClauses = "");
         static size_t insert(
             pqxx::transaction_base& transaction,
-            std::vector<std::shared_ptr<T>>& value);
+            std::vector<std::shared_ptr<T>>& values);
+        static size_t update(
+            pqxx::transaction_base& transaction, 
+            std::vector<T*> const& values,
+            typename T::request updateFields = all_fields<typename T::request>());
      };
 
     template<typename T>
@@ -405,6 +436,8 @@ namespace BeatMods::db {
     // value ptrs must have all values set properly, and no valid id
     // ptrs will be added to internal maps once the id fields have been generated,
     // and it will be updated in place
+    // the objects will have their ids even if the transaction is aborted, the object's ids still exist, however
+    //   they are still valid to be passed into this function
     // all foreign keys must be added first (TODO: change this?)
     template<typename T>
     auto insert(
@@ -418,6 +451,43 @@ namespace BeatMods::db {
         pqxx::transaction_base& transaction,
         std::vector<std::shared_ptr<T>>&& value)
     { return insert(transaction, value); }
+
+    // all elements of values must be non-null
+    template<typename T>
+    auto update(
+        pqxx::transaction_base& transaction,
+        std::vector<T*> const& values,
+        typename T::request updateFields = all_fields<typename T::request>())
+    { return _request_instantiator<T>::update(transaction, values, updateFields); }
+    
+    // temporary overload
+    template<typename T>
+    auto update(
+        pqxx::transaction_base& transaction,
+        std::vector<T*>&& values,
+        typename T::request updateFields = all_fields<typename T::request>())
+    { return update(transaction, values, updateFields); }
+
+    // takes shared pointer
+    template<typename T>
+    auto update(
+        pqxx::transaction_base& transaction,
+        std::vector<std::shared_ptr<T>> const& values,
+        typename T::request updateFields = all_fields<typename T::request>())
+    { 
+        std::vector<T*> ptr_values(values.size());
+        std::transform(std::execution::par_unseq, values.begin(), values.end(), ptr_values.begin(), 
+            [](auto const& shared) { return shared.get(); });
+        return update(transaction, ptr_values, updateFields);
+    }
+    
+    // temporary overload
+    template<typename T>
+    auto update(
+        pqxx::transaction_base& transaction,
+        std::vector<std::shared_ptr<T>>&& values,
+        typename T::request updateFields = all_fields<typename T::request>())
+    { return update(transaction, values, updateFields); }
     
     template struct _request_instantiator<NewsItem>;
     template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times

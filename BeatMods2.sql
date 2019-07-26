@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 11.3 (Debian 11.3-1.pgdg90+1)
+-- Dumped from database version 11.4 (Debian 11.4-1.pgdg90+1)
 -- Dumped by pg_dump version 11.3
 
--- Started on 2019-07-07 02:21:39
+-- Started on 2019-07-17 23:13:22
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -563,12 +563,12 @@ ALTER TABLE ONLY "mod-repo"."Mods_Tags_Joiner"
 
 
 --
--- TOC entry 2909 (class 2606 OID 17032)
--- Name: Mods Mods_id_key; Type: CONSTRAINT; Schema: mod-repo; Owner: -
+-- TOC entry 2909 (class 2606 OID 25222)
+-- Name: Mods Mods_id_version_gameVersion_key; Type: CONSTRAINT; Schema: mod-repo; Owner: -
 --
 
 ALTER TABLE ONLY "mod-repo"."Mods"
-    ADD CONSTRAINT "Mods_id_key" UNIQUE (id);
+    ADD CONSTRAINT "Mods_id_version_gameVersion_key" UNIQUE (id, version, "gameVersion");
 
 
 --
@@ -807,7 +807,7 @@ ALTER TABLE ONLY "server-state"."Tokens"
     ADD CONSTRAINT "Tokens_user_fkey" FOREIGN KEY ("user") REFERENCES "mod-repo"."Users"(id) MATCH FULL;
 
 
--- Completed on 2019-07-07 02:21:43
+-- Completed on 2019-07-17 23:13:23
 
 --
 -- PostgreSQL database dump complete

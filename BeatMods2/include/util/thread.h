@@ -5,7 +5,7 @@
 #include <shared_mutex>
 #include <condition_variable>
 
-namespace BeatMods2::thread {
+namespace BeatMods::thread {
     template <typename Mutex, typename CondVar>
     class basic_semaphore {
     public:

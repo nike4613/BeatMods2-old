@@ -298,7 +298,7 @@ std::shared_ptr<T> _id_instantiator<T>::insert(std::shared_ptr<T> const& ptr) {
 namespace {
 
     template<typename TR,
-        typename = std::enable_if_t<std::is_same_v<typename TR::_type::request, TR>>>
+        typename = std::enable_if_t<is_table_request_v<TR>>>
     __attribute__ ((pure)) std::string to_string(TR const& v)
     {
         constexpr size_t trSize = sizeof(TR);
@@ -312,7 +312,7 @@ namespace {
     }
 
     template<typename TReq, 
-        typename = std::enable_if_t<std::is_same_v<typename TReq::_type::request, TReq>>>
+        typename = std::enable_if_t<is_table_request_v<TReq>>>
     struct comparator { // impl less than
         __attribute__ ((pure)) bool operator()(std::pair<TReq, TReq> const& a,
                         std::pair<TReq, TReq> const& b) const
@@ -348,6 +348,9 @@ namespace {
             if (value.has_value()) vec.emplace_back(pqxx::to_string(value)); \
         } else vec.emplace_back(pqxx::to_string(value));
     }
+
+
+    // TODO: when we get static reflection, kill ALL of this garbage
 
     #define COUNT_WHERE_CLAUSE(name, fields, whereCount) if (fields.name) ++whereCount;
     #define WHERE_CLAUSE_FIELD(name, type, op, fields, stream, fieldNum) \
