@@ -464,6 +464,35 @@ namespace {
         insert_write_field_placeholder(sql, vals[i]->name, fid); \
         hasBefore = true;
 
+    #define UPDATE_COLUMN_NAMES(name, _, hasBefore, sql, fields) \
+        if (fields.name) { \
+            INSERT_VALUE_IDS(name, _, hasBefore, sql); \
+        }
+
+    #define UPDATE_COLUMN_VALUE_FIELDS(name, _, hasBefore, sql, fields, fid, values) \
+        if (fields.name) { \
+            if (hasBefore) sql << ","; \
+            insert_write_field_placeholder(sql, values->name, fid); \
+            hasBefore = true; \
+        }
+
+    #define UPDATE_ENCODE_FIELD(name, obj, vec, fields) \
+        if (fields.name) { \
+            INSERT_ENCODE_FIELD(name, obj, vec); \
+        }
+
+    #define UPDATE_ENCODE_FOREIGN_FIELD(name, _, obj, vec, fields) \
+        if (fields.name) { \
+            INSERT_ENCODE_FOREIGN_FIELD(name, _, obj, vec); \
+        }
+
+    #define UPDATE_ID_MATCH_TEXT(id, fid, sql) \
+        sql << "\"" STR(id) "\" = $" << fid++;
+
+    #define UPDATE_ID_INSERT_VALUE(id, obj, vec) \
+        INSERT_ENCODE_FIELD(id, obj, vec) 
+
+
     #define SPECIALIZE_SERIALIZER_FOR(_TYPE, idField, auto_ID) \
         template<> \
         SerializeResponse serialize_for_lookup( \
@@ -606,6 +635,41 @@ namespace {
             pqxx::row const& row, \
             std::shared_ptr<_TYPE>& obj) \
         { EXEC(UPDATE_ID(row, obj)); }
+        
+    #define SPECIALIZE_FOR_UPDATE(_TYPE, id) \
+        template<> \
+        SerializeResponse serialize_for_update( \
+            pqxx::connection_base& conn, \
+            _TYPE const* values, \
+            _TYPE::request updateFields) \
+        { \
+            std::ostringstream sql {}; \
+            \
+            int fid = 1; \
+            sql << "UPDATE " << _TYPE::table << " SET ("; \
+            \
+            bool hasBefore = false; \
+            EXEC(_TYPE##_FIELDS(UPDATE_COLUMN_NAMES, _, hasBefore, sql, updateFields)); \
+            EXEC(_TYPE##_FOREIGN_FIELDS(UPDATE_COLUMN_NAMES, hasBefore, sql, updateFields)); \
+            sql << ") = ("; \
+            hasBefore = false; \
+            EXEC(_TYPE##_FIELDS(UPDATE_COLUMN_VALUE_FIELDS, _, hasBefore, sql, updateFields, fid, values)); \
+            EXEC(_TYPE##_FOREIGN_FIELDS(UPDATE_COLUMN_VALUE_FIELDS, hasBefore, sql, updateFields, fid, values)); \
+            sql << ") WHERE "; \
+            \
+            UPDATE_ID_MATCH_TEXT(id, fid, sql); \
+            sql << ";"; \
+            \
+            SerializeResponse resp {SerializeResponse::kNormal, sql.str()}; \
+            resp.queryParams.reserve(fid - 1); \
+            \
+            EXEC(_TYPE##_FIELDS(UPDATE_ENCODE_FIELD, values, resp.queryParams, updateFields)); \
+            EXEC(_TYPE##_FOREIGN_FIELDS(UPDATE_ENCODE_FOREIGN_FIELD, values, resp.queryParams, updateFields)); \
+            \
+            UPDATE_ID_INSERT_VALUE(id, values, resp.queryParams); \
+            \
+            return resp; \
+        }
 
     #define NO_OP(...) // do nothing
     
@@ -631,6 +695,7 @@ namespace {
         SPECIALIZE_DESERIALIZER_FOR(_TYPE, idType, DEFAULT_CREATE_FROM_ID) \
         SPECIALIZE_INSERTER_FOR(_TYPE, idType, DEFAULT_INSERTER_PARAMS) \
         SPECIALIZE_INSERT_UPDATE(_TYPE, DEFAULT_UPDATE_ID) \
+        SPECIALIZE_FOR_UPDATE(_TYPE, idType)
 
     #define SPECIALIZE_WITHOUT_ID(_TYPE, idType) \
         SPECIALIZE_SERIALIZER_FOR(_TYPE, idType, false) \
@@ -657,62 +722,7 @@ namespace {
 
     SPECIALIZE_WITH_ID(NewsItem, id)
     
-    #define UPDATE_COLUMN_NAMES(name, _, hasBefore, sql, fields) \
-        if (fields.name) { \
-            INSERT_VALUE_IDS(name, _, hasBefore, sql); \
-        }
-    #define UPDATE_COLUMN_VALUE_FIELDS(name, _, hasBefore, sql, fields, fid, values) \
-        if (fields.name) { \
-            if (hasBefore) sql << ","; \
-            insert_write_field_placeholder(sql, values->name, fid); \
-            hasBefore = true; \
-        }
-    #define UPDATE_ENCODE_FIELD(name, obj, vec, fields) \
-        if (fields.name) { \
-            INSERT_ENCODE_FIELD(name, obj, vec); \
-        }
-    #define UPDATE_ENCODE_FOREIGN_FIELD(name, _, obj, vec, fields) \
-        if (fields.name) { \
-            INSERT_ENCODE_FOREIGN_FIELD(name, _, obj, vec); \
-        }
-    #define UPDATE_ID_MATCH_TEXT(id, fid, sql) \
-        sql << "\"" STR(id) "\" = $" << fid++;
-    #define UPDATE_ID_INSERT_VALUE(id, obj, vec) \
-        INSERT_ENCODE_FIELD(id, obj, vec) 
-
-    template<>
-    SerializeResponse serialize_for_update(
-        pqxx::connection_base& conn,
-        NewsItem const* values,
-        NewsItem::request updateFields)
-    {
-        std::ostringstream sql {}; \
-            
-        int fid = 1; 
-        sql << "UPDATE " << NewsItem::table << " SET ("; \
-        
-        bool hasBefore = false; 
-        EXEC(NewsItem_FIELDS(UPDATE_COLUMN_NAMES, _, hasBefore, sql, updateFields));
-        EXEC(NewsItem_FOREIGN_FIELDS(UPDATE_COLUMN_NAMES, hasBefore, sql, updateFields)); 
-        sql << ") = ("; 
-        hasBefore = false; 
-        EXEC(NewsItem_FIELDS(UPDATE_COLUMN_VALUE_FIELDS, _, hasBefore, sql, updateFields, fid, values));
-        EXEC(NewsItem_FOREIGN_FIELDS(UPDATE_COLUMN_VALUE_FIELDS, hasBefore, sql, updateFields, fid, values)); 
-        sql << ") WHERE ";
-
-        UPDATE_ID_MATCH_TEXT(id, fid, sql);
-        sql << ";";
-
-        SerializeResponse resp {SerializeResponse::kNormal, sql.str()}; 
-        resp.queryParams.reserve(fid - 1); 
-        
-        EXEC(NewsItem_FIELDS(UPDATE_ENCODE_FIELD, values, resp.queryParams, updateFields));
-        EXEC(NewsItem_FOREIGN_FIELDS(UPDATE_ENCODE_FOREIGN_FIELD, values, resp.queryParams, updateFields)); 
-
-        UPDATE_ID_INSERT_VALUE(id, values, resp.queryParams);
-        
-        return resp; 
-    }
+    
 
     #define _Tag_FIELDS(M, ...) \
         M(name, __VA_ARGS__)
