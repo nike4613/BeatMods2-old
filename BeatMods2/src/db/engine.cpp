@@ -162,6 +162,12 @@ namespace {
     void update_after_insert(
         pqxx::row const& row,
         std::shared_ptr<T>& obj);
+
+    template<typename T>
+    SerializeResponse serialize_for_update(
+        pqxx::connection_base& conn,
+        T const* values,
+        typename T::request updateFields);
 }
 
 template<typename T>
@@ -222,6 +228,30 @@ size_t _request_instantiator<T>::insert(
         update_after_insert(queryResult[i], values[i]);
 
     return queryResult.size();
+}
+
+template<typename T>
+void _request_instantiator<T>::update(
+    pqxx::transaction_base& transaction,
+    T const* values,
+    typename T::request updateFields)
+{
+    if constexpr (has_id_v<T>) {
+        auto serialized = serialize_for_update(transaction.conn(), values, updateFields);
+
+        pqxx::result queryResult;
+        switch (serialized.statementType) {
+        case SerializeResponse::kNormal: 
+            queryResult = transaction.exec_params(serialized.nameOrQuery, pqxx::prepare::make_dynamic_params(serialized.queryParams));
+            break;
+        case SerializeResponse::kPrepared: 
+            queryResult = transaction.exec_prepared(serialized.nameOrQuery, pqxx::prepare::make_dynamic_params(serialized.queryParams));
+            break;
+        case SerializeResponse::kJoinPart:
+            throw std::runtime_error("serialize_for_update returned a kJoinPart");
+            break;
+        }
+    }
 }
 
 template<typename T>
@@ -626,6 +656,63 @@ namespace {
     #define NewsItem_FOREIGN_FIELDS(M, ...) EXEC(_NewsItem_FOREIGN_FIELDS(M, __VA_ARGS__))
 
     SPECIALIZE_WITH_ID(NewsItem, id)
+    
+    #define UPDATE_COLUMN_NAMES(name, _, hasBefore, sql, fields) \
+        if (fields.name) { \
+            INSERT_VALUE_IDS(name, _, hasBefore, sql); \
+        }
+    #define UPDATE_COLUMN_VALUE_FIELDS(name, _, hasBefore, sql, fields, fid, values) \
+        if (fields.name) { \
+            if (hasBefore) sql << ","; \
+            insert_write_field_placeholder(sql, values->name, fid); \
+            hasBefore = true; \
+        }
+    #define UPDATE_ENCODE_FIELD(name, obj, vec, fields) \
+        if (fields.name) { \
+            INSERT_ENCODE_FIELD(name, obj, vec); \
+        }
+    #define UPDATE_ENCODE_FOREIGN_FIELD(name, _, obj, vec, fields) \
+        if (fields.name) { \
+            INSERT_ENCODE_FOREIGN_FIELD(name, _, obj, vec); \
+        }
+    #define UPDATE_ID_MATCH_TEXT(id, fid, sql) \
+        sql << "\"" STR(id) "\" = $" << fid++;
+    #define UPDATE_ID_INSERT_VALUE(id, obj, vec) \
+        INSERT_ENCODE_FIELD(id, obj, vec) 
+
+    template<>
+    SerializeResponse serialize_for_update(
+        pqxx::connection_base& conn,
+        NewsItem const* values,
+        NewsItem::request updateFields)
+    {
+        std::ostringstream sql {}; \
+            
+        int fid = 1; 
+        sql << "UPDATE " << NewsItem::table << " SET ("; \
+        
+        bool hasBefore = false; 
+        EXEC(NewsItem_FIELDS(UPDATE_COLUMN_NAMES, _, hasBefore, sql, updateFields));
+        EXEC(NewsItem_FOREIGN_FIELDS(UPDATE_COLUMN_NAMES, hasBefore, sql, updateFields)); 
+        sql << ") = ("; 
+        hasBefore = false; 
+        EXEC(NewsItem_FIELDS(UPDATE_COLUMN_VALUE_FIELDS, _, hasBefore, sql, updateFields, fid, values));
+        EXEC(NewsItem_FOREIGN_FIELDS(UPDATE_COLUMN_VALUE_FIELDS, hasBefore, sql, updateFields, fid, values)); 
+        sql << ") WHERE ";
+
+        UPDATE_ID_MATCH_TEXT(id, fid, sql);
+        sql << ";";
+
+        SerializeResponse resp {SerializeResponse::kNormal, sql.str()}; 
+        resp.queryParams.reserve(fid - 1); 
+        
+        EXEC(NewsItem_FIELDS(UPDATE_ENCODE_FIELD, values, resp.queryParams, updateFields));
+        EXEC(NewsItem_FOREIGN_FIELDS(UPDATE_ENCODE_FOREIGN_FIELD, values, resp.queryParams, updateFields)); 
+
+        UPDATE_ID_INSERT_VALUE(id, values, resp.queryParams);
+        
+        return resp; 
+    }
 
     #define _Tag_FIELDS(M, ...) \
         M(name, __VA_ARGS__)

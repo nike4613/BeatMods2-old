@@ -87,8 +87,27 @@ int main()
         pqxx::connection conn {conf.postgres.connection_string};
 
         pqxx::work transaction {conn};
+
+        db::NewsItem search;
+        search.title = "test";
+        auto results = db::lookup(transaction, 
+            {.title = true, .body = true, .edited = true},
+            "",
+            {.title = true},
+            &search,
+            db::PgCompareOp::Like);
         
-        auto newItem = std::make_shared<db::NewsItem>();
+        if (results.size() < 1) throw std::runtime_error("no matching items");
+
+        auto item = results[0];
+        item->body = "new body";
+        item->edited = std::chrono::system_clock::now();
+
+        db::update(transaction, item.get(), {.body = true, .edited = true});
+
+        transaction.commit();
+
+        /*auto newItem = std::make_shared<db::NewsItem>();
         newItem->author = "2c4406d3-dcf8-4195-97a4-8d4819213b93";
         newItem->body = "Hello! This was created from the server application!";
         newItem->edited = std::nullopt;
@@ -100,7 +119,7 @@ int main()
 
         db::insert(transaction, std::vector{newItem}); // note that this adds to the transaction, so for it to actually apply transaction.commit() must be called
 
-        std::cout << newItem->id << std::endl;
+        std::cout << newItem->id << std::endl;*/
 
         /*db::NewsItem lookupValues;
         auto author = std::make_shared<db::User>();

@@ -15,7 +15,6 @@
 #include <cstring>
 #include <numeric>
 #include <algorithm>
-#include <excecution>
 #include "util/json.h"
 #include "util/semver.h"
 #include "util/macro.h"
@@ -417,9 +416,9 @@ namespace BeatMods::db {
         static size_t insert(
             pqxx::transaction_base& transaction,
             std::vector<std::shared_ptr<T>>& values);
-        static size_t update(
+        static void update(
             pqxx::transaction_base& transaction, 
-            std::vector<T*> const& values,
+            T const* values,
             typename T::request updateFields = all_fields<typename T::request>());
      };
 
@@ -452,45 +451,17 @@ namespace BeatMods::db {
         std::vector<std::shared_ptr<T>>&& value)
     { return insert(transaction, value); }
 
-    // all elements of values must be non-null
+    // values must be non-null and have a valid ID
+    // this is a no-op for types where has_id_v<T> is false
     template<typename T>
     auto update(
         pqxx::transaction_base& transaction,
-        std::vector<T*> const& values,
-        typename T::request updateFields = all_fields<typename T::request>())
+        T const* values,
+        typename T::request updateFields/* = all_fields<typename T::request>()*/)
     { return _request_instantiator<T>::update(transaction, values, updateFields); }
     
-    // temporary overload
-    template<typename T>
-    auto update(
-        pqxx::transaction_base& transaction,
-        std::vector<T*>&& values,
-        typename T::request updateFields = all_fields<typename T::request>())
-    { return update(transaction, values, updateFields); }
-
-    // takes shared pointer
-    template<typename T>
-    auto update(
-        pqxx::transaction_base& transaction,
-        std::vector<std::shared_ptr<T>> const& values,
-        typename T::request updateFields = all_fields<typename T::request>())
-    { 
-        std::vector<T*> ptr_values(values.size());
-        std::transform(std::execution::par_unseq, values.begin(), values.end(), ptr_values.begin(), 
-            [](auto const& shared) { return shared.get(); });
-        return update(transaction, ptr_values, updateFields);
-    }
-    
-    // temporary overload
-    template<typename T>
-    auto update(
-        pqxx::transaction_base& transaction,
-        std::vector<std::shared_ptr<T>>&& values,
-        typename T::request updateFields = all_fields<typename T::request>())
-    { return update(transaction, values, updateFields); }
-    
     template struct _request_instantiator<NewsItem>;
-    template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times
+    /*template struct _request_instantiator<User>; // so that i don't have to repeat the signature 5 billion times
     template struct _request_instantiator<Tag>;
     template struct _request_instantiator<Group>;
     template struct _request_instantiator<GameVersion>;
@@ -500,7 +471,7 @@ namespace BeatMods::db {
     template struct _request_instantiator<Mods_Tags_JoinItem>;
     template struct _request_instantiator<Users_Groups_JoinItem>;
     template struct _request_instantiator<state::LogItem>;
-    template struct _request_instantiator<state::Token>;
+    template struct _request_instantiator<state::Token>;*/
 
     template<typename T>
     struct _id_instantiator {
@@ -545,6 +516,20 @@ namespace BeatMods::db {
     template struct _id_instantiator<GameVersion>;
     template struct _id_instantiator<Mod>;
     template struct _id_instantiator<state::LogItem>;
+
+    template<typename T>
+    struct has_id : std::false_type {};
+    
+    template<> struct has_id<User> : std::true_type {};
+    template<> struct has_id<NewsItem> : std::true_type {};
+    template<> struct has_id<Tag> : std::true_type {};
+    template<> struct has_id<Group> : std::true_type {};
+    template<> struct has_id<GameVersion> : std::true_type {};
+    template<> struct has_id<Mod> : std::true_type {};
+    template<> struct has_id<state::LogItem> : std::true_type {};
+
+    template<typename T>
+    constexpr bool has_id_v = has_id<T>::value;
 }
 
 namespace std { 

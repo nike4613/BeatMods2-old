@@ -71,7 +71,8 @@
 			"hash_map": "cpp",
 			"unordered_set": "cpp",
 			"charconv": "cpp",
-			"forward_list": "cpp"
+			"forward_list": "cpp",
+			"numeric": "cpp"
 		}
 	}
 }
