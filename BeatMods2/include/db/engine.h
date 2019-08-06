@@ -398,11 +398,12 @@ namespace BeatMods::db {
     template<typename T>
     using id_type_t = typename id_type<T>::type;
 
-    template<typename TR>
+    // TODO: when we get constexpr bit_cast, re-add this
+    /*template<typename TR>
     constexpr auto all_fields() -> std::enable_if_t<is_table_request_v<TR>, TR> {
         uint8_t data[sizeof(TR)] = {0xFF};
         return *reinterpret_cast<TR*>(data);
-    }
+    }*/
 
     template<typename T>
     struct _request_instantiator {
