@@ -4,6 +4,8 @@
 #include <thread>
 #include <shared_mutex>
 #include <condition_variable>
+#include <atomic>
+#include <type_traits>
 
 namespace BeatMods::thread {
     template <typename Mutex, typename CondVar>
@@ -126,6 +128,24 @@ namespace BeatMods::thread {
     private:
         mutex_type& mMutex;
     };
+
+    class spin_mutex {
+        std::atomic_flag owned;
+        
+    public:
+        spin_mutex() noexcept { owned.clear(); }
+        ~spin_mutex() noexcept {}
+
+        spin_mutex(spin_mutex const&) = delete;
+        spin_mutex(spin_mutex&&) = delete;
+
+        void lock() noexcept { while (!try_lock()) ; }
+        bool try_lock() noexcept { return owned.test_and_set(std::memory_order_acquire); }
+        void unlock() noexcept { owned.clear(std::memory_order_release); }
+    };
+
+    static_assert(std::is_nothrow_default_constructible_v<spin_mutex>);
+    static_assert(std::is_nothrow_destructible_v<spin_mutex>);
 }
 
 #endif
