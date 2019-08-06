@@ -82,7 +82,7 @@ int main()
             conf = Config::Parse(configJson, *logger);
     }
 
-    try
+    /*try
     {
         pqxx::connection conn {conf.postgres.connection_string};
 
@@ -232,13 +232,13 @@ int main()
             auto g = db::get_resolved(join->group);
             std::cout << gv->version << " vis " << std::to_string(gv->visibility) << " (" << gv->id << ") "
                 << "allows group " << g->name << std::endl;
-        }*/
+        }* /
     }
     catch (std::exception const& e)
     {    
         std::cerr << e.what() << std::endl;
         return 1;
-    }
+    }*/
 
     auto resc = std::make_shared<restbed::Resource>();
     resc->set_path("/{path: [^c].*}");

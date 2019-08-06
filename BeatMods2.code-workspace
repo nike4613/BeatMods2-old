@@ -73,6 +73,7 @@
 			"charconv": "cpp",
 			"forward_list": "cpp",
 			"numeric": "cpp"
-		}
+		},
+		"workbench.colorCustomizations": {}
 	}
 }
