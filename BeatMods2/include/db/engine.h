@@ -420,7 +420,7 @@ namespace BeatMods::db {
         static void update(
             pqxx::transaction_base& transaction, 
             T const* values,
-            typename T::request updateFields = all_fields<typename T::request>());
+            typename T::request updateFields/* = all_fields<typename T::request>()*/);
      };
 
     template<typename T>
