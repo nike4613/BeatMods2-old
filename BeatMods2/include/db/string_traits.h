@@ -12,7 +12,7 @@
 namespace pqxx {
     template<> struct string_traits<BeatMods::db::TimeStamp>
     {
-        static constexpr const char* date_format() noexcept { return "%Y-%m-%d %T%z"; }
+        static constexpr const char* date_format() noexcept { return "%Y-%m-%dT%T%z"; }
         static constexpr const char *name() noexcept { return "BeatMods::db::TimeStamp"; }
         static constexpr bool has_null() noexcept { return false; }
         static bool is_null(BeatMods::db::TimeStamp) { return false; }
