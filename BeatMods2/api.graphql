@@ -1,0 +1,147 @@
+
+schema {
+    query: Query
+    #mutation: Mutation
+}
+
+"""a general unique ID type"""
+scalar UUID
+
+"""a 64-bit integer type"""
+scalar BigInt
+
+"""some arbitrary JSON object"""
+scalar JObject
+
+"""an ISO 8601 encoded timestamp"""
+scalar TimeStamp
+
+"""a type representing the approval state of a mod"""
+enum Approval {
+    Approved
+    Declined
+    Pending
+    Inactive
+}
+
+"""a type representing the type of download for a mod; only valuable for PC mods"""
+enum DownloadType {
+    Steam
+    Oculus
+    Universal
+}
+
+"""a permission"""
+enum Permission {
+    gameversion_add
+    gameversion_edit
+    mod_create
+    mod_edit
+    mod_reposess
+    user_delete
+    group_add
+    group_edit
+    group_delete
+    mod_see_pending
+    mod_approve_deny
+    user_edit_groups
+    news_edit
+    news_add
+    mod_upload_as
+}
+
+enum System {
+    PC
+    Quest
+}
+
+enum Visibility {
+    Public
+    Groups
+}
+
+type Version {
+    major: Int!
+    minor: Int!
+    patch: Int!
+    prerelease: String!
+    build: String!
+
+    # Usually you either want this or the above, and not both
+    string: String!
+}
+
+input VersionObjSpec {
+    major: Int!
+    minor: Int!
+    patch: Int!
+    prerelease: String!
+    build: String = null
+}
+
+"""a Version can be specified either with a string or an obj spec"""
+input VersionSpec {
+    object: VersionObjSpec
+    string: String
+}
+
+"""SemVer range of Versions"""
+scalar VersionRange
+
+type ModRange {
+    modId: ID!
+    range: VersionRange!
+
+    """gv can be null, in which case assumed to be none"""
+    latestMatching(gv: GameVersionSpec): Mod!
+    """gv can be null, in which case assumed to be none"""
+    allMatching(gv: GameVersionSpec): [Mod!]!
+}
+
+type User {
+    id: UUID!
+    name: String!
+    """A markdown string specifying profile text"""
+    profile: String!
+    created: TimeStamp!
+    """may or may not be visible depending on authentication"""
+    githubId: ID!
+}
+
+type GameVersion {
+    id: UUID!
+    version: Version!
+    steamBuildId: BigInt!
+    visibility: Visibility!
+}
+
+input GameVersionSpec {
+    id: UUID
+    version: VersionSpec!
+}
+
+type Mod {
+    # TODO:: maybe remove this?
+    uuid: UUID!
+    id: ID!
+    name: String!
+    description: String!
+    author: User!
+    version: Version!
+    gameVersion: GameVersion!
+    system: System!
+    uploaded: TimeStamp!
+    approvalState: Approval!
+    approved: TimeStamp
+    required: Boolean
+    dependsOn: [ModRange!]!
+    conflictsWith: [ModRange!]!
+}
+
+type Query {
+    testMod: Mod!
+}
+
+#type Mutation {
+
+#}

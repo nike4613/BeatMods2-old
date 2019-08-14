@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "BeatMods2": {
+      "schemaPath": "./BeatMods2/api.graphql"
+    }
+  }
+}
