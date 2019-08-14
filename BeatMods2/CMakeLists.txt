@@ -15,7 +15,8 @@ add_executable (BeatMods2 # for consistency, can we please keep the inlcude file
 	"include/util/http.h"       "src/util/http.cpp"
 	"include/auth/github.h"     "src/auth/github.cpp")
 target_include_directories(BeatMods2 PRIVATE "include")
-target_link_libraries (BeatMods2 restbed-static pqxx_static tz date_interface libcurl)
+target_link_libraries (BeatMods2 restbed-static pqxx_static tz date_interface)
+add_dependencies(BeatMods2 RapidJSON)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD 17)
 set_property(TARGET BeatMods2 PROPERTY CXX_STANDARD_REQUIRED ON)
 

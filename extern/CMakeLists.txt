@@ -23,19 +23,60 @@ add_subdirectory("libpqxx")
 
 set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${CMAKE_CURRENT_SOURCE_DIR}/rapidjson/include")
 
-set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS}" PARENT_SCOPE)
-
 set(USE_SYSTEM_TZ_DB ON)
 set(ENABLE_DATE_TESTING OFF)
 add_subdirectory("date")
 
 # curl stuff
-set(CURL_STATICLIB true)
-set(BUILD_CURL_EXE false)
-set(HTTP_ONLY true)
-set(LIBCURL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/curl)
-find_path(LIBCURL_INCLUDE_DIR curl/curl.h HINTS ${LIBCURL_DIR}/include)
-set(LIBS ${LIBS} libcurl)
-set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${LIBCURL_INCLUDE_DIR}")
-add_definitions(-DCURL_STATICLIB)
-add_subdirectory("curl")
+#set(CURL_STATICLIB true)
+#set(BUILD_CURL_EXE false)
+#set(HTTP_ONLY true)
+#set(LIBCURL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/curl)
+#find_path(LIBCURL_INCLUDE_DIR curl/curl.h HINTS ${LIBCURL_DIR}/include)
+#set(LIBS ${LIBS} libcurl)
+#set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${LIBCURL_INCLUDE_DIR}")
+#add_definitions(-DCURL_STATICLIB)
+#add_subdirectory("curl")
+
+include(ExternalProject)
+
+set(RapidJSON_INSTALL_PATH "${CMAKE_CURRENT_BINARY_DIR}/rapidjson/install")
+
+ExternalProject_Add(RapidJSON
+    PREFIX rapidjson
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/rapidjson
+
+    CMAKE_CACHE_ARGS "-DCMAKE_INSTALL_PREFIX:PATH=${RapidJSON_INSTALL_PATH}"
+
+    # BUILD_BYPRODUCTS
+
+    EXCLUDE_FROM_ALL true
+)
+
+set(RapidJSON_INCLUDE_DIR "${RapidJSON_INSTALL_PATH}/include")
+
+set(GraphQLGen_INSTALL_PATH ${CMAKE_CURRENT_BINARY_DIR}/graphqlgen/install)
+set(GraphQLGen_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/graphqlgen)
+
+ExternalProject_Add(GraphQLGen
+    PREFIX graphqlgen
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/graphqlgen
+
+    CMAKE_ARGS "-DRAPIDJSON_DIR:PATH=${RapidJSON_INSTALL_PATH}"
+    CMAKE_CACHE_ARGS "-DCMAKE_CXX_FLAGS:STRING=-isystem ${RapidJSON_INCLUDE_DIR} -static-libstdc++"
+
+    CMAKE_CACHE_ARGS "-DGRAPHQL_UPDATE_SAMPLES:BOOL=OFF"
+    CMAKE_CACHE_ARGS "-DGRAPHQL_BUILD_TESTS:BOOL=OFF"
+
+    CMAKE_CACHE_ARGS "-DCMAKE_INSTALL_PREFIX:PATH=${GraphQLGen_INSTALL_PATH}"
+
+    BUILD_BYPRODUCTS ${GraphQLGen_BUILD_DIR}/src/GraphQLGen-build/src/schemagen
+
+    EXCLUDE_FROM_ALL true
+
+    DEPENDS RapidJSON
+)
+
+set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${RapidJSON_INCLUDE_DIR}")
+
+set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS}" PARENT_SCOPE)
