@@ -8,6 +8,7 @@ BeatMods 2 API
 
 * PostgreSQL
 * CMake
+* Boost::program_options and Boost::filesystem (for GraphQLGen)
 * A C/C++ toolchain with C++17 support (LLVM Clang 9 or GCC 9 recommended)
 
 ### Getting started
