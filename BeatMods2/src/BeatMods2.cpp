@@ -18,8 +18,6 @@
 
 #include "util/config.h"
 
-#include "util/http.h"
-
 #include "util/semver.h"
 #include "util/algorithm.h"
 
