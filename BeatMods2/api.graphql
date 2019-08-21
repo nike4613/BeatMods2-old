@@ -60,6 +60,14 @@ enum Visibility {
     Groups
 }
 
+enum SortBy {
+    None
+    TimeAsc
+    TimeDesc
+    NameAsc
+    NameDesc
+}
+
 type Version {
     major: Int!
     minor: Int!
@@ -81,21 +89,26 @@ input VersionObjSpec {
 
 """a Version can be specified either with a string or an obj spec"""
 input VersionSpec {
-    object: VersionObjSpec
-    string: String
+    object: VersionObjSpec = null
+    string: String = null
 }
 
 """SemVer range of Versions"""
 scalar VersionRange
 
 type ModRange {
-    modId: ID!
+    modId: String!
     range: VersionRange!
 
     """gv can be null, in which case assumed to be none"""
     latestMatching(gv: GameVersionSpec): Mod!
     """gv can be null, in which case assumed to be none"""
     allMatching(gv: GameVersionSpec): [Mod!]!
+}
+
+input ModRangeIn {
+    modId: String!
+    range: VersionRange!
 }
 
 type User {
@@ -108,6 +121,16 @@ type User {
     githubId: ID!
 }
 
+input UserSpec {
+    """
+    either this or `name` must be specified
+    
+    if this is, `name` is ignored
+    """
+    id: UUID
+    name: String
+}
+
 type GameVersion {
     id: UUID!
     version: Version!
@@ -116,14 +139,20 @@ type GameVersion {
 }
 
 input GameVersionSpec {
+    """
+    either this or `version` must be specified
+    
+    if this is, `version` is ignored
+    """
     id: UUID
-    version: VersionSpec!
+    version: VersionSpec
 }
 
+"""some fields may require authentication"""
 type Mod {
     # TODO:: maybe remove this?
     uuid: UUID!
-    id: ID!
+    id: String!
     name: String!
     description: String!
     author: User!
@@ -138,10 +167,50 @@ type Mod {
     conflictsWith: [ModRange!]!
 }
 
-type Query {
-    testMod: Mod!
+"""
+if any are null, they are considered omitted
+
+gets a list of mods with the id and/or game version optionally sorted
+"""
+input ModQuery {
+    id: String = null
+    gameVersion: GameVersionSpec = null
+    approval: Approval! = Approved
+    author: UserSpec = null
+    sortBy: SortBy! = None
 }
 
+input ResolutionQuery {
+    gameVersion: GameVersionSpec = null
+    approval: Approval = null
+    sortBy: SortBy! = None
+}
+
+type Query {
+
+    # Mod queries
+
+    modsWhere(query: ModQuery! = {}): [Mod!]!
+
+    """
+    resolves a set of ModRanges and their dependencies to the latest versions matching `gameVersion` and `approval`
+        where the results are sorted according to `SortBy`
+    """
+    resolveTree(range: [ModRangeIn!]!, query: ResolutionQuery! = {}): [Mod!]!
+
+    """
+    resolves a ModRange with the given limitations
+    """
+    resolveRange(range: ModRangeIn!, query: ResolutionQuery! = {}): [Mod!]!
+
+    # Game Versions
+
+    gameVersions: [GameVersion!]!
+
+
+
+}
+ 
 #type Mutation {
 
 #}
