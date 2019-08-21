@@ -77,6 +77,17 @@ ExternalProject_Add(GraphQLGen
     DEPENDS RapidJSON
 )
 
-set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${RapidJSON_INCLUDE_DIR}")
+add_library(libgraphqljson STATIC IMPORTED GLOBAL)
+set_property(TARGET libgraphqljson PROPERTY IMPORTED_LOCATION "${GraphQLGen_INSTALL_PATH}/lib/libgraphqljson.a")
+add_library(libgraphqlpeg STATIC IMPORTED GLOBAL)
+set_property(TARGET libgraphqlpeg PROPERTY IMPORTED_LOCATION "${GraphQLGen_INSTALL_PATH}/lib/libgraphqlpeg.a")
+add_library(libgraphqlservice STATIC IMPORTED GLOBAL)
+set_property(TARGET libgraphqlservice PROPERTY IMPORTED_LOCATION "${GraphQLGen_INSTALL_PATH}/lib/libgraphqlservice.a")
+add_dependencies(libgraphqlservice libgraphqljson libgraphqlpeg)
+
+set(GraphQLGen_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/graphqlgen/include;${GraphQLGen_BUILD_DIR}/src/GraphQLGen-build/include/")
+
+set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS};${RapidJSON_INCLUDE_DIR};${GraphQLGen_INCLUDE_DIR}")
 
 set(DEPS_INCLUDE_DIRS "${DEPS_INCLUDE_DIRS}" PARENT_SCOPE)
+set(GraphQLGen_BINARY "${GraphQLGen_BUILD_DIR}/src/GraphQLGen-build/src/schemagen" PARENT_SCOPE)
