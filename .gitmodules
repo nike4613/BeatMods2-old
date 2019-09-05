@@ -1,3 +1,7 @@
+[submodule "BeatMods2-Client"]
+	path = BeatMods2-Client
+	url = git@github.com:raftario/BeatMods2-Client.git
+	branch = master
 [submodule "extern/restbed"]
 	path = extern/restbed
 	url = https://github.com/Corvusoft/restbed.git
@@ -7,10 +11,6 @@
 [submodule "extern/rapidjson"]
 	path = extern/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
-[submodule "BeatMods2-Client"]
-	path = BeatMods2-Client
-	url = git@github.com:raftario/BeatMods2-Client.git
-	branch = master
 [submodule "extern/date"]
 	path = extern/date
 	url = https://github.com/HowardHinnant/date.git
