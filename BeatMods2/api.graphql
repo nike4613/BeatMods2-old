@@ -68,6 +68,16 @@ enum SortBy {
     NameDesc
 }
 
+type Tag {
+    id: BigInt!
+    name: String!
+}
+
+input TagSpec {
+    id: BigInt = null
+    name: String = null
+}
+
 type Version {
     major: Int!
     minor: Int!
@@ -119,6 +129,8 @@ type User {
     created: TimeStamp!
     """may or may not be visible depending on authentication"""
     githubId: ID!
+ 
+    groups: [Group!]!
 }
 
 input UserSpec {
@@ -131,11 +143,19 @@ input UserSpec {
     name: String
 }
 
+type Group {
+    id: BigInt!
+    name: String!
+    permissions: [Permission!]!
+}
+
 type GameVersion {
     id: UUID!
     version: Version!
     steamBuildId: BigInt!
     visibility: Visibility!
+
+    visibleTo: [Group!]!
 }
 
 input GameVersionSpec {
@@ -165,6 +185,21 @@ type Mod {
     required: Boolean
     dependsOn: [ModRange!]!
     conflictsWith: [ModRange!]!
+
+    tags: [Tag!]!
+}
+
+type NewsItem {
+    id: UUID!
+    title: String!
+    author: User!
+    """
+    markdown body
+    """
+    body: String!
+    posted: TimeStamp!
+    edited: TimeStamp
+    system: System
 }
 
 """
@@ -175,9 +210,11 @@ gets a list of mods with the id and/or game version optionally sorted
 input ModQuery {
     id: String = null
     gameVersion: GameVersionSpec = null
+    versionRange: ModRangeIn = null
     approval: Approval! = Approved
     author: UserSpec = null
     sortBy: SortBy! = None
+    tags: [TagSpec!] = null
 }
 
 input ResolutionQuery {
@@ -187,10 +224,15 @@ input ResolutionQuery {
 }
 
 type Query {
+    mods: Query_Mods!
+    gameVersions: Query_GameVersions!
+    
+    tags: [Tag!]!
+}
+ 
+type Query_Mods {
 
-    # Mod queries
-
-    modsWhere(query: ModQuery! = {}): [Mod!]!
+    where(query: ModQuery! = {}): [Mod!]!
 
     """
     resolves a set of ModRanges and their dependencies to the latest versions matching `gameVersion` and `approval`
@@ -202,15 +244,24 @@ type Query {
     resolves a ModRange with the given limitations
     """
     resolveRange(range: ModRangeIn!, query: ResolutionQuery! = {}): [Mod!]!
-
-    # Game Versions
-
-    gameVersions: [GameVersion!]!
-
-
-
 }
- 
+type Query_GameVersions {
+
+    """
+    only returns ones that are visible to currently authenticated user
+    """
+    all: [GameVersion!]!
+
+    """
+    see comment on gameVersions
+    """
+    byName(version: VersionSpec!): GameVersion
+}
+type Query_News {
+    recent(count: Int!, page: Int! = 0): [NewsItem!]!
+    all: [NewsItem!]!
+}
+
 #type Mutation {
 
 #}
